@@ -1,5 +1,6 @@
 import numpy as np
 import pygame
+import math
 
 
 # Class for bezier curves. It's math and I'm too bored to explain it.
@@ -167,70 +168,9 @@ class Animation:
         for i in range(len(points)):
             # Go through each value of each element of points
             for j in range(len(points[i])):
-                # Copypasta, very annoying
-                # I have to do this because putting all those values (animations[i][1].x, animations[i][1].y, etc.)
-                # in a list will be useless, as those values will only be copied. Links will be made to the values, not
-                # the names. That's why this very long, extremely annoying copypasta which is hard to maintain.
-                # If anybody reading this knows how to avoid this mess, PLEASE tell me!!!
-                if replaced_values[j] == 'x':
-                    # If the operation is =, we set the value to the point
-                    if values_operations[j] == '=':
-                        animations[i][1].x = points[i][j]
-                    # If the operation is +, we add the value to the point (negative numbers for subtraction)
-                    elif values_operations[j] == '+':
-                        animations[i][1].x += points[i][j]
-                    # If the operation is *, we multiply the value by the point (floats between 0 and 1 for division)
-                    elif values_operations[j] == '*':
-                        animations[i][1].x *= points[i][j]
-                elif replaced_values[j] == 'y':
-                    if values_operations[j] == '=':
-                        animations[i][1].y = points[i][j]
-                    elif values_operations[j] == '+':
-                        animations[i][1].y += points[i][j]
-                    elif values_operations[j] == '*':
-                        animations[i][1].y *= points[i][j]
-                elif replaced_values[j] == 'width':
-                    if values_operations[j] == '=':
-                        animations[i][1].width = points[i][j]
-                    elif values_operations[j] == '+':
-                        animations[i][1].width += points[i][j]
-                    elif values_operations[j] == '*':
-                        animations[i][1].width *= points[i][j]
-                elif replaced_values[j] == 'height':
-                    if values_operations[j] == '=':
-                        animations[i][1].height = points[i][j]
-                    elif values_operations[j] == '+':
-                        animations[i][1].height += points[i][j]
-                    elif values_operations[j] == '*':
-                        animations[i][1].height *= points[i][j]
-                elif replaced_values[j] == 'x_offset':
-                    if values_operations[j] == '=':
-                        animations[i][1].x_offset = points[i][j]
-                    elif values_operations[j] == '+':
-                        animations[i][1].x_offset += points[i][j]
-                    elif values_operations[j] == '*':
-                        animations[i][1].x_offset *= points[i][j]
-                elif replaced_values[j] == 'y_offset':
-                    if values_operations[j] == '=':
-                        animations[i][1].y_offset = points[i][j]
-                    elif values_operations[j] == '+':
-                        animations[i][1].y_offset += points[i][j]
-                    elif values_operations[j] == '*':
-                        animations[i][1].y_offset *= points[i][j]
-                elif replaced_values[j] == 'width_offset':
-                    if values_operations[j] == '=':
-                        animations[i][1].width_offset = points[i][j]
-                    elif values_operations[j] == '+':
-                        animations[i][1].width_offset += points[i][j]
-                    elif values_operations[j] == '*':
-                        animations[i][1].width_offset *= points[i][j]
-                elif replaced_values[j] == 'height_offset':
-                    if values_operations[j] == '=':
-                        animations[i][1].height_offset = points[i][j]
-                    elif values_operations[j] == '+':
-                        animations[i][1].height_offset += points[i][j]
-                    elif values_operations[j] == '*':
-                        animations[i][1].height_offset *= points[i][j]
+                replaced_attribute = getattr(animations[i][1], replaced_values[j])
+                value = GameObject.calculate_operations(replaced_attribute, points[i][j], values_operations[j])
+                setattr(animations[i][1], replaced_values[j], value)
         # Convert back to tuple and return that
         return tuple(animations)
 
@@ -283,7 +223,9 @@ class GameObject(object):
 
     # counters: a tuple, containing objects of class Counter. Count down each second. Very useful while simple. Can hold
     # an additional value to help animations,
-    def __init__(self, x=0, y=0, width=10, height=10, x_offset=0, y_offset=0, width_offset=1, height_offset=1,
+    def __init__(self, x=0, y=0, width=10, height=10, x_offset=0, y_offset=0, width_offset=0, height_offset=0,
+                 x_offset_op='+', y_offset_op='+', width_offset_op='+', height_offset_op='+',
+                 angle=0, rotation_mode='Idk', hit_box=(), origin=(),
                  controls=(None, None, None, None), pressed_controls=(False, False, False, False), speed=(1, 1, 1, 1),
                  icon=None, color=(255, 0, 0), sound=None,
                  animations=(), counters=()):
@@ -295,6 +237,44 @@ class GameObject(object):
         self.y_offset = y_offset
         self.width_offset = width_offset
         self.height_offset = height_offset
+
+        self.x_offset_op = x_offset_op
+        self.y_offset_op = y_offset_op
+        self.width_offset_op = width_offset_op
+        self.height_offset_op = height_offset_op
+
+        if not hit_box:
+            self.hit_box = (
+                (
+                    GameObject.evaluate_operation(self.x, self.x_offset, self.x_offset_op),
+                    GameObject.evaluate_operation(self.y, self.y_offset, self.y_offset_op)
+                ),
+                (
+                    GameObject.evaluate_operation(self.x, self.x_offset, self.x_offset_op),
+                    GameObject.evaluate_operation(self.y, self.y_offset, self.y_offset_op) +
+                    GameObject.evaluate_operation(self.height, self.height_offset, self.height_offset_op)
+                ),
+                (
+                    GameObject.evaluate_operation(self.x, self.x_offset, self.x_offset_op) +
+                    GameObject.evaluate_operation(self.width, self.width_offset, self.width_offset_op),
+                    GameObject.evaluate_operation(self.y, self.y_offset, self.y_offset_op) +
+                    GameObject.evaluate_operation(self.height, self.height_offset, self.height_offset_op)
+                ),
+                (
+                    GameObject.evaluate_operation(self.x, self.x_offset, self.x_offset_op) +
+                    GameObject.evaluate_operation(self.width, self.width_offset, self.width_offset_op),
+                    GameObject.evaluate_operation(self.y, self.y_offset, self.y_offset_op)
+                ),
+            )
+        else:
+            self.hit_box = hit_box
+        if not origin:
+            self.origin = (self.x, self.y)
+        else:
+            self.origin = origin
+
+        self.angle = angle
+        self.rotation_mode = rotation_mode
 
         # Controls can be of any length due to how the checking of events is done,
         self.controls = controls
@@ -327,6 +307,12 @@ class GameObject(object):
     # Method to update the game object. Mostly useful for player movement, counters and animation. Should be called
     # every frame for each game object.
     def update(self):
+        self.move()
+        self.evaluate_boxes()
+        self.update_counters()
+        self.animate()
+
+    def move(self):
         # Useful for player (and not only player) movement. If we actually have a non-empty pressed_controls list,
         # we will do the following:
         if self.pressed_controls:
@@ -347,6 +333,117 @@ class GameObject(object):
             # just ignore that error.
             except TypeError:
                 pass
+
+    def evaluate_boxes(self):
+        x = GameObject.evaluate_operation(self.x, self.x_offset, self.x_offset_op)
+        y = GameObject.evaluate_operation(self.y, self.y_offset, self.y_offset_op)
+        width = GameObject.evaluate_operation(self.width, self.width_offset, self.width_offset_op)
+        height = GameObject.evaluate_operation(self.height, self.height_offset, self.height_offset_op)
+
+        origin = (x, y)
+        if self.rotation_mode == 'AROUND':
+            box = [pygame.math.Vector2(p) for p in [(0, 0), (width, 0), (width, -height), (0, -height)]]
+            box_rotate = [p.rotate(self.angle) for p in box]
+            min_box = (min(box_rotate, key=lambda p: p[0])[0], min(box_rotate, key=lambda p: p[1])[1])
+            max_box = (max(box_rotate, key=lambda p: p[0])[0], max(box_rotate, key=lambda p: p[1])[1])
+            origin = (x + min_box[0], y - max_box[1])
+            self.hit_box = (
+                (x + box_rotate[0][0], y + box_rotate[0][1] * -1),
+                (x + box_rotate[1][0], y + box_rotate[1][1] * -1),
+                (x + box_rotate[2][0], y + box_rotate[2][1] * -1),
+                (x + box_rotate[3][0], y + box_rotate[3][1] * -1),
+            )
+        elif self.rotation_mode == 'CENTER':
+            box = [pygame.math.Vector2(p) for p in [
+                (0, 0),
+                (width, 0),
+                (width, -height),
+                (0, -height)
+            ]]
+            box_rotate = [p.rotate(self.angle) for p in box]
+
+            min_box = (min(box_rotate, key=lambda p: p[0])[0], min(box_rotate, key=lambda p: p[1])[1])
+            max_box = (max(box_rotate, key=lambda p: p[0])[0], max(box_rotate, key=lambda p: p[1])[1])
+
+            pivot = pygame.math.Vector2(width / 2, -height / 2)
+            pivot_rotate = pivot.rotate(self.angle)
+            pivot_move = pivot_rotate - pivot
+
+            origin = (
+                x + min_box[0] - pivot_move[0],
+                y - max_box[1] + pivot_move[1]
+            )
+
+            or1x = origin[0] + box_rotate[0][0]
+            or1y = origin[1] + box_rotate[0][1] * -1
+
+            if self.angle // 90 % 2 != 0:
+                width, height = height, width
+                angle_sin = math.sin((self.angle - 90) / 180 * math.pi)
+                angle_cos = math.cos((self.angle - 90) / 180 * math.pi)
+            else:
+                angle_sin = math.sin(self.angle / 180 * math.pi)
+                angle_cos = math.cos(self.angle / 180 * math.pi)
+            angle_sin = abs(angle_sin)
+            angle_cos = abs(angle_cos)
+            point1 = (
+                or1x,
+                or1y + angle_sin * width
+            )
+            point2 = (
+                or1x + angle_cos * width,
+                or1y
+            )
+            point3 = (
+                or1x + angle_cos * width + angle_sin * height,
+                or1y + angle_cos * height
+            )
+            point4 = (
+                or1x + angle_sin * height,
+                or1y + angle_sin * width + angle_cos * height
+            )
+            self.hit_box = (
+                point1,
+                point2,
+                point3,
+                point4
+            )
+        else:
+            if self.angle // 90 % 2 != 0:
+                width, height = height, width
+                angle_sin = math.sin((self.angle - 90) / 180 * math.pi)
+                angle_cos = math.cos((self.angle - 90) / 180 * math.pi)
+            else:
+                angle_sin = math.sin(self.angle / 180 * math.pi)
+                angle_cos = math.cos(self.angle / 180 * math.pi)
+            angle_sin = abs(angle_sin)
+            angle_cos = abs(angle_cos)
+            point1 = (
+                x,
+                y + angle_sin * width
+            )
+            point2 = (
+                x + angle_cos * width,
+                y
+            )
+            point3 = (
+                x + angle_cos * width + angle_sin * height,
+                y + angle_cos * height
+            )
+            point4 = (
+                x + angle_sin * height,
+                y + angle_sin * width + angle_cos * height
+            )
+            self.hit_box = (
+                point1,
+                point2,
+                point3,
+                point4
+            )
+
+        self.origin = origin
+
+    def update_counters(self):
         # If we have any current counters, we do the following
         if self.counters:
             for counter in self.counters:
@@ -380,6 +477,8 @@ class GameObject(object):
                     # We then delete the now useless object c. I don't know if this is needed, or if python's
                     # garbage collector would've cleaned it up the same regardless.
                     del c
+
+    def animate(self):
         # If we do have current animations (which, if we ever have animations, and none of our animations change our
         # animations, we always should have), we do the following
         if self.animations:
@@ -421,148 +520,65 @@ class GameObject(object):
         # How would we even have that counter in our counters? Well, that's in case before changed our counters to
         # include this exact timer, for whatever reason.
         if after_counter not in self.counters:
-            self.counters = self.counters + (after_counter, )
+            self.counters = self.counters + (after_counter,)
 
     # Draws the game object on the surface
     # The surface usually should be a screen
     def draw(self, surface):
+        width = GameObject.evaluate_operation(self.width, self.width_offset, self.width_offset_op)
+        height = GameObject.evaluate_operation(self.height, self.height_offset, self.height_offset_op)
         # If we have an icon, we do the following
         if self.icon:
-            # TODO: Rotation
+            image = pygame.transform.scale(
+                self.icon, (width, height)
+            )
+            image = pygame.transform.rotate(image, self.angle)
+            image = pygame.Surface.convert_alpha(image)
+
+            # 2. Blit our image according to our coordinates plus offset and rotation
             surface.blit(
-                # 1. Transform the image according to our size times offset
-                pygame.transform.scale(
-                    self.icon, (self.width * self.width_offset, self.height * self.height_offset)
-                ),
-                # 2. Blit our image according to our coordinates plus offset
-                (self.x + self.x_offset, self.y + self.y_offset)
+                image, self.origin
             )
         # If we don't have an icon, we do the following
-        else:
+        if True:
             try:
-                pygame.draw.rect(
-                    surface, self.color,
-                    # 1. Create a rect object according to our size times offset, and our coordinates plus offset
-                    pygame.Rect(
-                        self.x + self.x_offset, self.y + self.y_offset,
-                        self.width * self.width_offset, self.height * self.height_offset
-                    )
-                    # 2. Blit our rect to the surface
-                )
+                # Draw lines from the hitbox
+                pygame.draw.line(surface, self.color, self.hit_box[0], self.hit_box[1], 3)
+                pygame.draw.line(surface, self.color, self.hit_box[1], self.hit_box[2], 3)
+                pygame.draw.line(surface, self.color, self.hit_box[2], self.hit_box[3], 3)
+                pygame.draw.line(surface, self.color, self.hit_box[3], self.hit_box[0], 3)
             # If the object is actually Temporary Game object, and some of the used variables are empty strings, we just
             # ignore that error.
             except TypeError:
                 pass
+            except ValueError:
+                self.color = (0, 0, 0)
 
     # Method to change variables with a lot of options.
     # object_replaced: Game object
     # object_replace_with: Temporary Game object
     @staticmethod
     def change_variables(object_replaced, object_replace_with):
-        # This copypasta again... I don't want to support this. I don't want to use this. Help me.
-        # If this variable isn't an empty string,
-        if object_replace_with.x != '':
-            # And if it's operation for replacement is a plus,
-            if object_replace_with.x_operation == '+':
-                # We add it to the according variable of object replaced.
-                object_replaced.x += object_replace_with.x
-            # And if it's operation for replacement is multiplication,
-            elif object_replace_with.x_operation == '*':
-                # We multiply the according variable of object replaced by it.
-                object_replaced.x *= object_replace_with.x
-            # And if it's operation for replacement is equals,
-            elif object_replace_with.x_operation == '=':
-                # We set the according variable of object replaced to it.
-                object_replaced.x = object_replace_with.x
-        if object_replace_with.y != '':
-            if object_replace_with.y_operation == '+':
-                object_replaced.y += object_replace_with.y
-            elif object_replace_with.y_operation == '*':
-                object_replaced.y *= object_replace_with.y
-            elif object_replace_with.y_operation == '=':
-                object_replaced.y = object_replace_with.y
-        if object_replace_with.width != '':
-            if object_replace_with.width_operation == '+':
-                object_replaced.width += object_replace_with.width
-            elif object_replace_with.width_operation == '*':
-                object_replaced.width *= object_replace_with.width
-            elif object_replace_with.width_operation == '=':
-                object_replaced.width = object_replace_with.width
-        if object_replace_with.height != '':
-            if object_replace_with.height_operation == '+':
-                object_replaced.height += object_replace_with.height
-            elif object_replace_with.height_operation == '*':
-                object_replaced.height *= object_replace_with.height
-            elif object_replace_with.height_operation == '=':
-                object_replaced.height = object_replace_with.height
-        if object_replace_with.x_offset != '':
-            if object_replace_with.x_offset_operation == '+':
-                object_replaced.x_offset += object_replace_with.x_offset
-            elif object_replace_with.x_offset_operation == '*':
-                object_replaced.x_offset *= object_replace_with.x_offset
-            elif object_replace_with.x_offset_operation == '=':
-                object_replaced.x_offset = object_replace_with.x_offset
-        if object_replace_with.y_offset != '':
-            if object_replace_with.y_offset_operation == '+':
-                object_replaced.y_offset += object_replace_with.y_offset
-            elif object_replace_with.y_offset_operation == '*':
-                object_replaced.y_offset *= object_replace_with.y_offset
-            elif object_replace_with.y_offset_operation == '=':
-                object_replaced.y_offset = object_replace_with.y_offset
-        if object_replace_with.width_offset != '':
-            if object_replace_with.width_offset_operation == '+':
-                object_replaced.width_offset += object_replace_with.width_offset
-            elif object_replace_with.width_offset_operation == '*':
-                object_replaced.width_offset *= object_replace_with.width_offset
-            elif object_replace_with.width_offset_operation == '=':
-                object_replaced.width_offset = object_replace_with.width_offset
-        if object_replace_with.height_offset != '':
-            if object_replace_with.height_offset_operation == '+':
-                object_replaced.height_offset += object_replace_with.height_offset
-            elif object_replace_with.height_offset_operation == '*':
-                object_replaced.height_offset *= object_replace_with.height_offset
-            elif object_replace_with.height_offset_operation == '=':
-                object_replaced.height_offset = object_replace_with.height_offset
-        if object_replace_with.controls != '':
-            object_replaced.controls = object_replace_with.controls
-        if object_replace_with.pressed_controls != '':
-            object_replaced.pressed_controls = list(object_replace_with.pressed_controls)
-        if object_replace_with.speed != '':
-            if object_replace_with.speed_operation == '+':
-                new_speed = []
-                for i in range(len(object_replaced.speed)):
-                    new_speed.append(object_replaced.speed[i] + object_replace_with.speed[i])
-                object_replaced.speed = tuple(new_speed)
-            elif object_replace_with.speed_operation == '*':
-                new_speed = []
-                for i in range(len(object_replaced.speed)):
-                    new_speed.append(object_replaced.speed[i] * object_replace_with.speed[i])
-                object_replaced.speed = tuple(new_speed)
-            elif object_replace_with.speed_operation == '=':
-                object_replaced.speed = object_replace_with.speed
-        if object_replace_with.icon != '':
-            object_replaced.icon = object_replace_with.icon
-        if object_replace_with.color != '':
-            if object_replace_with.color_operation == '+':
-                new_color = []
-                for i in range(len(object_replaced.color)):
-                    new_color.append(object_replaced.color[i] + object_replace_with.color[i])
-                object_replaced.color = tuple(new_color)
-            elif object_replace_with.color_operation == '*':
-                new_color = []
-                for i in range(len(object_replaced.color)):
-                    new_color.append(object_replaced.color[i] * object_replace_with.color[i])
-                object_replaced.color = tuple(new_color)
-            elif object_replace_with.color_operation == '=':
-                object_replaced.color = object_replace_with.color
-        if object_replace_with.sound != '':
-            object_replaced.sound = object_replace_with.sound
-        if object_replace_with.animations != '':
-            object_replaced.animations = object_replace_with.animations
-        if object_replace_with.play_animation != '':
-            object_replaced.play_animation = object_replace_with.play_animation
-        if object_replace_with.counters != '':
-            object_replaced.counters = object_replace_with.counters
+        all_game_object_values = ('x', 'y', 'width', 'height', 'x_offset', 'y_offset', 'width_offset', 'height_offset',
+                                  'x_offset_op', 'y_offset_op', 'width_offset_op', 'height_offset_op',
+                                  'angle', 'rotation_mode', 'hit_box', 'origin',
+                                  'controls', 'pressed_controls', 'speed',
+                                  'icon', 'color', 'sound',
+                                  'animations', 'counters')
+        for name in all_game_object_values:
+            if getattr(object_replace_with, name) != '':
+                value = getattr(object_replace_with, name)
+                if hasattr(object_replace_with, name + '_operation'):
+                    value = GameObject.calculate_operations(
+                        getattr(object_replaced, name),
+                        value,
+                        getattr(object_replace_with, name + '_operation')
+                    )
+                setattr(
+                    object_replaced,
+                    name,
+                    value
+                )
 
     # A function to check events for players. It will check if the window is closed, and return False accordingly,
     # and if control buttons are pressed, and set the pressed controls values accordingly
@@ -600,6 +616,7 @@ class GameObject(object):
                             # we just ignore that error.
                             except TypeError:
                                 pass
+
         # If the window wasn't closed, we return True in the end.
         return True
 
@@ -608,7 +625,7 @@ class GameObject(object):
     # static_rect: any other game object. Will not be the one moved. You can still deduce where to move it if you like,
     # by diving the cost by two, and moving both objects in opposite directions.
     @staticmethod
-    def collide_rectangles(movable_rect, static_rect):
+    def collide_not_rotated_rectangles(movable_rect, static_rect):
         # Check if both rectangles are colliding at all
         if pygame.Rect(movable_rect.x, movable_rect.y, movable_rect.width, movable_rect.height).colliderect(
                 pygame.Rect(static_rect.x, static_rect.y, static_rect.width, static_rect.height)):
@@ -634,6 +651,45 @@ class GameObject(object):
             if minimal_cost == cost_down:
                 return ["DOWN", cost_down]
 
+    @staticmethod
+    def evaluate_operation(val1, val2, operator):
+        if operator == '+':
+            return val1 + val2
+        elif operator == '*':
+            return val1 * val2
+        elif operator == '=':
+            return val2
+        else:
+            return val1
+
+    @staticmethod
+    def calculate_operations(val1, val2, operator):
+        val1_type = type(val1)
+        val2_type = type(val2)
+        iters = (tuple, list)
+        ints = (int, float)
+        return_value = val1
+
+        if val1_type in iters:
+            if val2_type in iters:
+                return_value = list(val1)
+                for i in range(len(val1)):
+                    return_value[i] = GameObject.evaluate_operation(return_value[i], val2[i], operator)
+
+                if val1_type == tuple:
+                    return_value = tuple(return_value)
+            elif val2_type in ints:
+                return_value = [GameObject.evaluate_operation(value, val2, operator) for value in val1]
+
+                if val1_type == tuple:
+                    return_value = tuple(return_value)
+        elif val1_type in ints:
+            if val2_type in iters:
+                return_value = GameObject.evaluate_operation(val1, val2[0], operator)
+            elif val2_type in ints:
+                return_value = GameObject.evaluate_operation(val1, val2, operator)
+        return return_value
+
 
 # class for temporary game objects. Mostly used for temporary variable changes, and animations.
 class TempGameObject(GameObject):
@@ -641,13 +697,16 @@ class TempGameObject(GameObject):
     # to replace that value. The _operation variables give directions to change_variables function, the operation
     # corresponding to the operation
     def __init__(self, x='', y='', width='', height='', x_offset='', y_offset='', width_offset='', height_offset='',
+                 x_offset_op='', y_offset_op='', width_offset_op='', height_offset_op='',
+                 angle='', rotation_mode='', hit_box='', origin='',
                  controls='', pressed_controls='', speed='',
                  icon='', color='', sound='',
                  animations='', play_animation='', counters='',
                  x_operation='+', y_operation='+', width_operation='+', height_operation='+',
                  x_offset_operation='+', y_offset_operation='+', width_offset_operation='+',
                  height_offset_operation='+',
-                 speed_operation='+', color_operation='+'):
+                 speed_operation='+', color_operation='+',
+                 angle_operation='+'):
         self.x = x
         self.y = y
         self.width = width
@@ -657,10 +716,20 @@ class TempGameObject(GameObject):
         self.width_offset = width_offset
         self.height_offset = height_offset
 
+        self.x_offset_op = x_offset_op
+        self.y_offset_op = y_offset_op
+        self.width_offset_op = width_offset_op
+        self.height_offset_op = height_offset_op
+
+        self.angle = angle
+        self.rotation_mode = rotation_mode
+
+        self.hit_box = hit_box
+        self.origin = origin
+
         self.controls = controls
-        self.pressed_controls = pressed_controls
         # We have to turn the pressed controls variable into a tuple because of some bug that happens when it's mutable.
-        self.pressed_controls = tuple(self.pressed_controls)
+        self.pressed_controls = tuple(pressed_controls) if pressed_controls != '' else ''
         self.speed = speed
 
         self.icon = icon
@@ -681,6 +750,7 @@ class TempGameObject(GameObject):
         self.height_offset_operation = height_offset_operation
         self.speed_operation = speed_operation
         self.color_operation = color_operation
+        self.angle_operation = angle_operation
 
         # The initialized variable makes the temporary game object update if it's true. This is only useful for
         # temporary game objects that update, and are in animations.
@@ -689,6 +759,10 @@ class TempGameObject(GameObject):
     def update(self):
         if self.initialized:
             super().update()
+
+    def draw(self, surface):
+        if self.initialized:
+            super().draw(surface)
 
 
 # This class is for counting down. It's really simple, but useful.
@@ -739,10 +813,12 @@ def update_things(things):
 
 if __name__ == "__main__":
     clock = pygame.time.Clock()
-    man = GameObject(controls=[pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d], width=70, height=50)
+    man = GameObject(controls=[pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d], width=70, height=50,
+                     icon=pygame.image.load('a.png'), rotation_mode='CENTER')
 
     blok = GameObject(controls=[pygame.K_UP, pygame.K_LEFT, pygame.K_DOWN, pygame.K_RIGHT], width=50, height=30,
-                      color=(0, 255, 255))
+                      color=(0, 10, 10))
+
     players = [man, blok]
     drawablethings = [man, blok]
     things = [man, blok]
@@ -754,5 +830,6 @@ if __name__ == "__main__":
         screen.window.fill(screen.color)
         draw_things(drawablethings, screen.window)
         pygame.display.update()
+        man.angle += 1
         clock.tick(60)
     pygame.quit()
