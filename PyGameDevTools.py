@@ -307,7 +307,7 @@ class GameObject(object):
     # Method to update the game object. Mostly useful for player movement, counters and animation. Should be called
     # every frame for each game object.
     def update(self):
-        self.move()
+        self.move_rotated()
         self.evaluate_boxes()
         self.update_counters()
         self.animate()
@@ -326,6 +326,32 @@ class GameObject(object):
                     self.y += self.speed[2]
                 if self.pressed_controls[3]:
                     self.x += self.speed[3]
+            # If the list is for whatever reason less than 4 elements long, we just ignore that error.
+            except IndexError:
+                pass
+            # Or if the object is actually Temporary Game object, and some of the used variables are empty strings, we
+            # just ignore that error.
+            except TypeError:
+                pass
+
+    def move_rotated(self):
+        if self.pressed_controls:
+            # Try moving the player according to UP, LEFT, DOWN, RIGHT controls
+            try:
+                cos = math.cos(self.angle / 180 * math.pi)
+                sin = math.sin(self.angle / 180 * math.pi)
+                if self.pressed_controls[0]:
+                    self.x -= sin * self.speed[0]
+                    self.y -= cos * self.speed[0]
+                if self.pressed_controls[1]:
+                    self.x -= cos * self.speed[3]
+                    self.y += sin * self.speed[3]
+                if self.pressed_controls[2]:
+                    self.x += sin * self.speed[2]
+                    self.y += cos * self.speed[2]
+                if self.pressed_controls[3]:
+                    self.x += cos * self.speed[3]
+                    self.y -= sin * self.speed[3]
             # If the list is for whatever reason less than 4 elements long, we just ignore that error.
             except IndexError:
                 pass
@@ -650,6 +676,158 @@ class GameObject(object):
                 return ["UP", cost_up]
             if minimal_cost == cost_down:
                 return ["DOWN", cost_down]
+        return False
+
+    @staticmethod
+    def is_point_colliding_with_any_rectangle(rectangle_points, point):
+        if point not in rectangle_points:
+            ab = math.sqrt(((rectangle_points[0][0] - rectangle_points[1][0]) ** 2) +
+                           ((rectangle_points[0][1] - rectangle_points[1][1]) ** 2))
+            bc = math.sqrt(((rectangle_points[1][0] - rectangle_points[2][0]) ** 2) +
+                           ((rectangle_points[1][1] - rectangle_points[2][1]) ** 2))
+            cd = math.sqrt(((rectangle_points[2][0] - rectangle_points[3][0]) ** 2) +
+                           ((rectangle_points[2][1] - rectangle_points[3][1]) ** 2))
+            da = math.sqrt(((rectangle_points[3][0] - rectangle_points[0][0]) ** 2) +
+                           ((rectangle_points[3][1] - rectangle_points[0][1]) ** 2))
+
+            ap = math.sqrt(((rectangle_points[0][0] - point[0]) ** 2) +
+                           ((rectangle_points[0][1] - point[1]) ** 2))
+            bp = math.sqrt(((rectangle_points[1][0] - point[0]) ** 2) +
+                           ((rectangle_points[1][1] - point[1]) ** 2))
+            cp = math.sqrt(((rectangle_points[2][0] - point[0]) ** 2) +
+                           ((rectangle_points[2][1] - point[1]) ** 2))
+            dp = math.sqrt(((rectangle_points[3][0] - point[0]) ** 2) +
+                           ((rectangle_points[3][1] - point[1]) ** 2))
+
+            if ((ap + bp > ab)
+                    and (ap + ab > bp)
+                    and (bp + ab > ap)) \
+                    and ((bp + cp > bc)
+                         and (bp + bc > cp)
+                         and (cp + bc > bp)) \
+                    and ((cp + dp > cd)
+                         and (cp + cd > dp)
+                         and (dp + cd > cp)) \
+                    and ((dp + ap > da)
+                         and (dp + da > ap)
+                         and (ap + da > dp)):
+                abp_perimeter = (ab + bp + ap) / 2
+                bcp_perimeter = (bc + cp + bp) / 2
+                cdp_perimeter = (cd + dp + cp) / 2
+                dap_perimeter = (da + ap + dp) / 2
+                abp_area = math.sqrt(abp_perimeter *
+                                     (abp_perimeter - ab) *
+                                     (abp_perimeter - bp) *
+                                     (abp_perimeter - ap))
+                bcp_area = math.sqrt(bcp_perimeter *
+                                     (bcp_perimeter - bc) *
+                                     (bcp_perimeter - cp) *
+                                     (bcp_perimeter - bp))
+                cdp_area = math.sqrt(cdp_perimeter *
+                                     (cdp_perimeter - cd) *
+                                     (cdp_perimeter - dp) *
+                                     (cdp_perimeter - cp))
+                dap_area = math.sqrt(dap_perimeter *
+                                     (dap_perimeter - da) *
+                                     (dap_perimeter - ap) *
+                                     (dap_perimeter - dp))
+
+                if abp_area + bcp_area + cdp_area + dap_area <= ab * bc:
+                    return True
+        return False
+
+    @staticmethod
+    def which_rectangle_inside_another(rectangle_points1, rectangle_points2):
+        for point in rectangle_points1:
+            if GameObject.is_point_colliding_with_any_rectangle(rectangle_points2, point):
+                return 1
+        for point in rectangle_points2:
+            if GameObject.is_point_colliding_with_any_rectangle(rectangle_points1, point):
+                return 2
+        return False
+
+    @staticmethod
+    def point_on_line_perpendicular_to_point(line_point1, line_point2, point):
+        if line_point1[0] != line_point2[0] and line_point1[1] != line_point2[1]:
+            m = (line_point2[1] - line_point1[1]) / (line_point2[0] - line_point1[0])
+            b = line_point1[1] - (m * line_point1[0])
+            pm = -(1 / m)
+            pb = point[1] - (pm * point[0])
+            x = (pb - b) / (m - pm)
+            y = (m * x) + b
+        elif line_point1[0] == line_point2[0] and line_point1[1] != line_point2[1]:
+            x = line_point1[0]
+            y = point[1]
+        elif line_point1[1] == line_point2[1] and line_point1[0] != line_point2[0]:
+            x = point[0]
+            y = line_point1[1]
+        else:
+            x = line_point1[0]
+            y = line_point1[1]
+        return x, y
+
+    @staticmethod
+    def distance_between_two_points(p1, p2):
+        return math.sqrt(((p2[0] - p1[0]) ** 2) + ((p2[1] - p1[1]) ** 2))
+
+    @staticmethod
+    def all_perpendiculars_on_a_rectangle_of_a_point(rectangle_points, point):
+        if GameObject.is_point_colliding_with_any_rectangle(rectangle_points, point):
+            return_list = [
+                GameObject.point_on_line_perpendicular_to_point(rectangle_points[0], rectangle_points[1], point),
+                GameObject.point_on_line_perpendicular_to_point(rectangle_points[1], rectangle_points[2], point),
+                GameObject.point_on_line_perpendicular_to_point(rectangle_points[2], rectangle_points[3], point),
+                GameObject.point_on_line_perpendicular_to_point(rectangle_points[3], rectangle_points[0], point)
+            ]
+            return return_list
+        return False
+
+    @staticmethod
+    def collide_rotated_rectangles(movable_rect, static_rect):
+        which = GameObject.which_rectangle_inside_another(movable_rect, static_rect)
+        if which == 1:
+            del which
+            all_perpendiculars = []
+            viable_perpendiculars = []
+            for point in movable_rect:
+                perpendicular_points = GameObject.all_perpendiculars_on_a_rectangle_of_a_point(static_rect, point)
+                if perpendicular_points:
+                    for i in range(len(perpendicular_points)):
+                        all_perpendiculars.append((perpendicular_points[i][0] - point[0],
+                                                   perpendicular_points[i][1] - point[1]))
+            for point in all_perpendiculars:
+                temp_movable_rect = list(movable_rect)
+                for tp in range(len(temp_movable_rect)):
+                    tpx = temp_movable_rect[tp][0] + point[0]
+                    tpy = temp_movable_rect[tp][1] + point[1]
+                    temp_movable_rect[tp] = (tpx, tpy)
+                if not GameObject.which_rectangle_inside_another(temp_movable_rect, static_rect):
+                    viable_perpendiculars.append(point)
+
+            viable_perpendiculars = sorted(viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1]))
+            return viable_perpendiculars
+        elif which == 2:
+            del which
+            all_perpendiculars = []
+            viable_perpendiculars = []
+            for point in static_rect:
+                perpendicular_points = GameObject.all_perpendiculars_on_a_rectangle_of_a_point(movable_rect, point)
+                if perpendicular_points:
+                    for i in range(len(perpendicular_points)):
+                        all_perpendiculars.append((point[0] - perpendicular_points[i][0],
+                                                   point[1] - perpendicular_points[i][1]))
+            for point in all_perpendiculars:
+                temp_movable_rect = list(movable_rect)
+                for tp in range(len(temp_movable_rect)):
+                    tpx = temp_movable_rect[tp][0] + point[0]
+                    tpy = temp_movable_rect[tp][1] + point[1]
+                    temp_movable_rect[tp] = (tpx, tpy)
+                if not GameObject.which_rectangle_inside_another(temp_movable_rect, static_rect):
+                    viable_perpendiculars.append(point)
+
+            viable_perpendiculars = sorted(viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1]))
+            return viable_perpendiculars
+        return False
 
     @staticmethod
     def evaluate_operation(val1, val2, operator):
@@ -814,22 +992,25 @@ def update_things(things):
 if __name__ == "__main__":
     clock = pygame.time.Clock()
     man = GameObject(controls=[pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d], width=70, height=50,
-                     icon=pygame.image.load('a.png'), rotation_mode='CENTER')
+                     icon=pygame.image.load('a.png'), angle=90)
 
-    blok = GameObject(controls=[pygame.K_UP, pygame.K_LEFT, pygame.K_DOWN, pygame.K_RIGHT], width=50, height=30,
-                      color=(0, 10, 10))
+    blok = GameObject(controls=[pygame.K_UP, pygame.K_LEFT, pygame.K_DOWN, pygame.K_RIGHT], width=100, height=70,
+                      color=(0, 10, 10), x=10, y=10, angle=0)
 
     players = [man, blok]
     drawablethings = [man, blok]
     things = [man, blok]
-    screen = Screen()
+    screen = Screen(700, 600)
     pygame.init()
-
     while GameObject.check_events(players):
         update_things(things)
         screen.window.fill(screen.color)
         draw_things(drawablethings, screen.window)
         pygame.display.update()
-        man.angle += 1
+        p = GameObject.collide_rotated_rectangles(blok.hit_box, man.hit_box)
+        if p:
+            man.x -= p[0][0]
+            man.y -= p[0][1]
+
         clock.tick(60)
     pygame.quit()
