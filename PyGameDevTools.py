@@ -225,9 +225,10 @@ class GameObject(object):
     # an additional value to help animations,
     def __init__(self, x=0, y=0, width=10, height=10, x_offset=0, y_offset=0, width_offset=0, height_offset=0,
                  x_offset_op='+', y_offset_op='+', width_offset_op='+', height_offset_op='+',
-                 angle=0, rotation_mode='Idk', hit_box=(), origin=(),
+                 angle=0, rotation_mode='Idk', hit_box=[], origin=(),
                  controls=(None, None, None, None), pressed_controls=(False, False, False, False), speed=(1, 1, 1, 1),
-                 icon=None, color=(255, 0, 0), sound=None,
+                 icon=None, color=(255, 0, 0),
+                 sound=None, sound_volume=1.0, sound_channel=0, sound_is_looped=False, sound_fade_in_ms=0,
                  animations=(), counters=()):
         self.x = x
         self.y = y
@@ -244,7 +245,7 @@ class GameObject(object):
         self.height_offset_op = height_offset_op
 
         if not hit_box:
-            self.hit_box = (
+            self.hit_box = [
                 (
                     GameObject.evaluate_operation(self.x, self.x_offset, self.x_offset_op),
                     GameObject.evaluate_operation(self.y, self.y_offset, self.y_offset_op)
@@ -265,7 +266,7 @@ class GameObject(object):
                     GameObject.evaluate_operation(self.width, self.width_offset, self.width_offset_op),
                     GameObject.evaluate_operation(self.y, self.y_offset, self.y_offset_op)
                 ),
-            )
+            ]
         else:
             self.hit_box = hit_box
         if not origin:
@@ -296,7 +297,13 @@ class GameObject(object):
 
         self.icon = icon
         self.color = color
+
         self.sound = sound
+        self.sound_volume = sound_volume
+        self.sound_channel = sound_channel
+        self.sound_is_looped = sound_is_looped
+        self.sound_fade_in_ms = sound_fade_in_ms
+        self.played_sound = False
 
         self.animations = animations
         # play_animation is used for animations only (recurring temporal variable changes). It makes the selected
@@ -311,6 +318,15 @@ class GameObject(object):
         self.evaluate_boxes()
         self.update_counters()
         self.animate()
+        self.play_sound()
+
+    def play_sound(self):
+        if type(self.sound) == pygame.mixer.Sound:
+            if not pygame.mixer.Channel(0).get_busy() and (not self.played_sound or self.sound_is_looped):
+                self.played_sound = True
+                pygame.mixer.Channel(self.sound_channel).play(self.sound,
+                                                              fade_ms=self.sound_fade_in_ms)
+                pygame.mixer.Channel(self.sound_channel).set_volume(self.sound_volume)
 
     def move(self):
         # Useful for player (and not only player) movement. If we actually have a non-empty pressed_controls list,
@@ -373,12 +389,12 @@ class GameObject(object):
             min_box = (min(box_rotate, key=lambda p: p[0])[0], min(box_rotate, key=lambda p: p[1])[1])
             max_box = (max(box_rotate, key=lambda p: p[0])[0], max(box_rotate, key=lambda p: p[1])[1])
             origin = (x + min_box[0], y - max_box[1])
-            self.hit_box = (
+            self.hit_box = [
                 (x + box_rotate[0][0], y + box_rotate[0][1] * -1),
                 (x + box_rotate[1][0], y + box_rotate[1][1] * -1),
                 (x + box_rotate[2][0], y + box_rotate[2][1] * -1),
                 (x + box_rotate[3][0], y + box_rotate[3][1] * -1),
-            )
+            ]
         elif self.rotation_mode == 'CENTER':
             box = [pygame.math.Vector2(p) for p in [
                 (0, 0),
@@ -428,12 +444,12 @@ class GameObject(object):
                 or1x + angle_sin * height,
                 or1y + angle_sin * width + angle_cos * height
             )
-            self.hit_box = (
+            self.hit_box = [
                 point1,
                 point2,
                 point3,
                 point4
-            )
+            ]
         else:
             if self.angle // 90 % 2 != 0:
                 width, height = height, width
@@ -460,12 +476,12 @@ class GameObject(object):
                 x + angle_sin * height,
                 y + angle_sin * width + angle_cos * height
             )
-            self.hit_box = (
+            self.hit_box = [
                 point1,
                 point2,
                 point3,
                 point4
-            )
+            ]
 
         self.origin = origin
 
@@ -545,8 +561,7 @@ class GameObject(object):
         # If we don't have that counter in our counters, we add it to our counters.
         # How would we even have that counter in our counters? Well, that's in case before changed our counters to
         # include this exact timer, for whatever reason.
-        if after_counter not in self.counters:
-            self.counters = self.counters + (after_counter,)
+        self.counters = self.counters + (after_counter,)
 
     # Draws the game object on the surface
     # The surface usually should be a screen
@@ -565,20 +580,13 @@ class GameObject(object):
             surface.blit(
                 image, self.origin
             )
-        # If we don't have an icon, we do the following
         if True:
             try:
-                # Draw lines from the hitbox
-                pygame.draw.line(surface, self.color, self.hit_box[0], self.hit_box[1], 3)
-                pygame.draw.line(surface, self.color, self.hit_box[1], self.hit_box[2], 3)
-                pygame.draw.line(surface, self.color, self.hit_box[2], self.hit_box[3], 3)
-                pygame.draw.line(surface, self.color, self.hit_box[3], self.hit_box[0], 3)
+                pygame.draw.polygon(surface, self.color, self.hit_box, 2)
             # If the object is actually Temporary Game object, and some of the used variables are empty strings, we just
             # ignore that error.
             except TypeError:
                 pass
-            except ValueError:
-                self.color = (0, 0, 0)
 
     # Method to change variables with a lot of options.
     # object_replaced: Game object
@@ -676,157 +684,6 @@ class GameObject(object):
                 return ["UP", cost_up]
             if minimal_cost == cost_down:
                 return ["DOWN", cost_down]
-        return False
-
-    @staticmethod
-    def is_point_colliding_with_any_rectangle(rectangle_points, point):
-        if point not in rectangle_points:
-            ab = math.sqrt(((rectangle_points[0][0] - rectangle_points[1][0]) ** 2) +
-                           ((rectangle_points[0][1] - rectangle_points[1][1]) ** 2))
-            bc = math.sqrt(((rectangle_points[1][0] - rectangle_points[2][0]) ** 2) +
-                           ((rectangle_points[1][1] - rectangle_points[2][1]) ** 2))
-            cd = math.sqrt(((rectangle_points[2][0] - rectangle_points[3][0]) ** 2) +
-                           ((rectangle_points[2][1] - rectangle_points[3][1]) ** 2))
-            da = math.sqrt(((rectangle_points[3][0] - rectangle_points[0][0]) ** 2) +
-                           ((rectangle_points[3][1] - rectangle_points[0][1]) ** 2))
-
-            ap = math.sqrt(((rectangle_points[0][0] - point[0]) ** 2) +
-                           ((rectangle_points[0][1] - point[1]) ** 2))
-            bp = math.sqrt(((rectangle_points[1][0] - point[0]) ** 2) +
-                           ((rectangle_points[1][1] - point[1]) ** 2))
-            cp = math.sqrt(((rectangle_points[2][0] - point[0]) ** 2) +
-                           ((rectangle_points[2][1] - point[1]) ** 2))
-            dp = math.sqrt(((rectangle_points[3][0] - point[0]) ** 2) +
-                           ((rectangle_points[3][1] - point[1]) ** 2))
-
-            if ((ap + bp > ab)
-                    and (ap + ab > bp)
-                    and (bp + ab > ap)) \
-                    and ((bp + cp > bc)
-                         and (bp + bc > cp)
-                         and (cp + bc > bp)) \
-                    and ((cp + dp > cd)
-                         and (cp + cd > dp)
-                         and (dp + cd > cp)) \
-                    and ((dp + ap > da)
-                         and (dp + da > ap)
-                         and (ap + da > dp)):
-                abp_perimeter = (ab + bp + ap) / 2
-                bcp_perimeter = (bc + cp + bp) / 2
-                cdp_perimeter = (cd + dp + cp) / 2
-                dap_perimeter = (da + ap + dp) / 2
-                abp_area = math.sqrt(abp_perimeter *
-                                     (abp_perimeter - ab) *
-                                     (abp_perimeter - bp) *
-                                     (abp_perimeter - ap))
-                bcp_area = math.sqrt(bcp_perimeter *
-                                     (bcp_perimeter - bc) *
-                                     (bcp_perimeter - cp) *
-                                     (bcp_perimeter - bp))
-                cdp_area = math.sqrt(cdp_perimeter *
-                                     (cdp_perimeter - cd) *
-                                     (cdp_perimeter - dp) *
-                                     (cdp_perimeter - cp))
-                dap_area = math.sqrt(dap_perimeter *
-                                     (dap_perimeter - da) *
-                                     (dap_perimeter - ap) *
-                                     (dap_perimeter - dp))
-
-                if abp_area + bcp_area + cdp_area + dap_area <= ab * bc:
-                    return True
-        return False
-
-    @staticmethod
-    def which_rectangle_inside_another(rectangle_points1, rectangle_points2):
-        for point in rectangle_points1:
-            if GameObject.is_point_colliding_with_any_rectangle(rectangle_points2, point):
-                return 1
-        for point in rectangle_points2:
-            if GameObject.is_point_colliding_with_any_rectangle(rectangle_points1, point):
-                return 2
-        return False
-
-    @staticmethod
-    def point_on_line_perpendicular_to_point(line_point1, line_point2, point):
-        if line_point1[0] != line_point2[0] and line_point1[1] != line_point2[1]:
-            m = (line_point2[1] - line_point1[1]) / (line_point2[0] - line_point1[0])
-            b = line_point1[1] - (m * line_point1[0])
-            pm = -(1 / m)
-            pb = point[1] - (pm * point[0])
-            x = (pb - b) / (m - pm)
-            y = (m * x) + b
-        elif line_point1[0] == line_point2[0] and line_point1[1] != line_point2[1]:
-            x = line_point1[0]
-            y = point[1]
-        elif line_point1[1] == line_point2[1] and line_point1[0] != line_point2[0]:
-            x = point[0]
-            y = line_point1[1]
-        else:
-            x = line_point1[0]
-            y = line_point1[1]
-        return x, y
-
-    @staticmethod
-    def distance_between_two_points(p1, p2):
-        return math.sqrt(((p2[0] - p1[0]) ** 2) + ((p2[1] - p1[1]) ** 2))
-
-    @staticmethod
-    def all_perpendiculars_on_a_rectangle_of_a_point(rectangle_points, point):
-        if GameObject.is_point_colliding_with_any_rectangle(rectangle_points, point):
-            return_list = [
-                GameObject.point_on_line_perpendicular_to_point(rectangle_points[0], rectangle_points[1], point),
-                GameObject.point_on_line_perpendicular_to_point(rectangle_points[1], rectangle_points[2], point),
-                GameObject.point_on_line_perpendicular_to_point(rectangle_points[2], rectangle_points[3], point),
-                GameObject.point_on_line_perpendicular_to_point(rectangle_points[3], rectangle_points[0], point)
-            ]
-            return return_list
-        return False
-
-    @staticmethod
-    def collide_rotated_rectangles(movable_rect, static_rect):
-        which = GameObject.which_rectangle_inside_another(movable_rect, static_rect)
-        if which == 1:
-            del which
-            all_perpendiculars = []
-            viable_perpendiculars = []
-            for point in movable_rect:
-                perpendicular_points = GameObject.all_perpendiculars_on_a_rectangle_of_a_point(static_rect, point)
-                if perpendicular_points:
-                    for i in range(len(perpendicular_points)):
-                        all_perpendiculars.append((perpendicular_points[i][0] - point[0],
-                                                   perpendicular_points[i][1] - point[1]))
-            for point in all_perpendiculars:
-                temp_movable_rect = list(movable_rect)
-                for tp in range(len(temp_movable_rect)):
-                    tpx = temp_movable_rect[tp][0] + point[0]
-                    tpy = temp_movable_rect[tp][1] + point[1]
-                    temp_movable_rect[tp] = (tpx, tpy)
-                if not GameObject.which_rectangle_inside_another(temp_movable_rect, static_rect):
-                    viable_perpendiculars.append(point)
-
-            viable_perpendiculars = sorted(viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1]))
-            return viable_perpendiculars
-        elif which == 2:
-            del which
-            all_perpendiculars = []
-            viable_perpendiculars = []
-            for point in static_rect:
-                perpendicular_points = GameObject.all_perpendiculars_on_a_rectangle_of_a_point(movable_rect, point)
-                if perpendicular_points:
-                    for i in range(len(perpendicular_points)):
-                        all_perpendiculars.append((point[0] - perpendicular_points[i][0],
-                                                   point[1] - perpendicular_points[i][1]))
-            for point in all_perpendiculars:
-                temp_movable_rect = list(movable_rect)
-                for tp in range(len(temp_movable_rect)):
-                    tpx = temp_movable_rect[tp][0] + point[0]
-                    tpy = temp_movable_rect[tp][1] + point[1]
-                    temp_movable_rect[tp] = (tpx, tpy)
-                if not GameObject.which_rectangle_inside_another(temp_movable_rect, static_rect):
-                    viable_perpendiculars.append(point)
-
-            viable_perpendiculars = sorted(viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1]))
-            return viable_perpendiculars
         return False
 
     @staticmethod
@@ -974,6 +831,200 @@ class Screen(object):
         self.window = pygame.display.set_mode((self.width, self.height))
 
 
+class Polygon(object):
+    def __init__(self, points):
+        self.points = points
+
+    def draw(self, surface, color, width):
+        pygame.draw.polygon(surface, color, self.points, width)
+
+    @staticmethod
+    def get_line_formula(p1, p2):
+        m = (p2[1] - p1[1]) / (p2[0] - p1[0]) if p1[0] != p2[0] else 0
+        b = p1[1] - (p1[0] * m)
+        return m, b
+
+    @staticmethod
+    def sort_line(line, index):
+        line[0][index], line[1][index] = min(line[0][index], line[1][index]), max(line[0][index], line[1][index])
+        return line
+
+    @staticmethod
+    def collinear_on_segment(p1, p2, p3):
+        if ((p2[0] <= max(p1[0], p3[0]))
+                and (p2[0] >= min(p1[0], p3[0]))
+                and (p2[1] <= max(p1[1], p3[1]))
+                and (p2[1] >= min(p1[1], p3[1]))):
+            return True
+        return False
+
+    @staticmethod
+    def get_orientation(p1, p2, p3):
+        val = ((p2[1] - p1[1]) * (p3[0] - p2[0])) - ((p2[0] - p1[0]) * (p3[1] - p2[1]))
+        if val > 0:
+            return 1
+        elif val < 0:
+            return 2
+        else:
+            return 0
+
+    @staticmethod
+    def lines_intersect(line1, line2):
+        o1 = Polygon.get_orientation(line1[0], line1[1], line2[0])
+        o2 = Polygon.get_orientation(line1[0], line1[1], line2[1])
+        o3 = Polygon.get_orientation(line2[0], line2[1], line1[0])
+        o4 = Polygon.get_orientation(line2[0], line2[1], line1[1])
+        if o1 != o2 and o3 != o4:
+            return True
+
+        if o1 == 0 and Polygon.collinear_on_segment(line1[0], line1[1], line2[0]):
+            return True
+        if o2 == 0 and Polygon.collinear_on_segment(line1[0], line1[1], line2[1]):
+            return True
+        if o3 == 0 and Polygon.collinear_on_segment(line2[0], line2[1], line1[0]):
+            return True
+        if o4 == 0 and Polygon.collinear_on_segment(line2[0], line2[1], line1[1]):
+            return True
+
+        return False
+
+    @staticmethod
+    def get_polygon_area(polygon_points):
+        return 0.5 * abs(sum(x0 * y1 - x1 * y0
+                             for ((x0, y0), (x1, y1)) in Polygon.segments(polygon_points)))
+
+    @staticmethod
+    def segments(polygon_points):
+        return zip(polygon_points, polygon_points[1:] + [polygon_points[0]])
+
+    @staticmethod
+    def is_point_in_convex_polygon(polygon_points, point):
+        polygon_area = Polygon.get_polygon_area(polygon_points)
+
+        point_area = 0
+        for p in range(len(polygon_points) - 1):
+            a = polygon_points[p]
+            b = polygon_points[p + 1]
+            if a == point or b == point:
+                return -2
+            ab = math.sqrt(((a[0] - b[0]) ** 2) +
+                           ((a[1] - b[1]) ** 2))
+            ap = math.sqrt(((a[0] - point[0]) ** 2) +
+                           ((a[1] - point[1]) ** 2))
+            bp = math.sqrt(((b[0] - point[0]) ** 2) +
+                           ((b[1] - point[1]) ** 2))
+            if ((ab + ap <= bp)
+                    or (ap + bp <= ab)
+                    or (bp + ab <= ap)) \
+                    and (a != b):
+                return -1
+            abp_perimeter = (ab + bp + ap) / 2
+            abp_area = math.sqrt(abp_perimeter *
+                                 (abp_perimeter - ab) *
+                                 (abp_perimeter - bp) *
+                                 (abp_perimeter - ap))
+            point_area += abp_area
+
+        a = polygon_points[-1]
+        b = polygon_points[0]
+        if a == point or b == point:
+            return -2
+        ab = math.sqrt(((a[0] - b[0]) ** 2) +
+                       ((a[1] - b[1]) ** 2))
+        ap = math.sqrt(((a[0] - point[0]) ** 2) +
+                       ((a[1] - point[1]) ** 2))
+        bp = math.sqrt(((b[0] - point[0]) ** 2) +
+                       ((b[1] - point[1]) ** 2))
+        if (ab + ap <= bp) \
+                or (ap + bp <= ab) \
+                or (bp + ab <= ap):
+            return -1
+        abp_perimeter = (ab + ap + bp) / 2
+        abp_area = math.sqrt(abp_perimeter *
+                             (abp_perimeter - ab) *
+                             (abp_perimeter - bp) *
+                             (abp_perimeter - ap))
+        point_area += abp_area
+
+        if point_area <= polygon_area:
+            return True
+        print(point_area, polygon_area)
+        return False
+
+    @staticmethod
+    def which_rectangle_inside_another(rectangle_points1, rectangle_points2):
+        for point in rectangle_points1:
+            if Polygon.is_point_in_convex_polygon(rectangle_points2, point):
+                return 1
+        for point in rectangle_points2:
+            if Polygon.is_point_in_convex_polygon(rectangle_points1, point):
+                return 2
+        return False
+
+    @staticmethod
+    def point_on_line_perpendicular_to_point(line_point1, line_point2, point):
+        if line_point1[0] != line_point2[0] and line_point1[1] != line_point2[1]:
+            m = (line_point2[1] - line_point1[1]) / (line_point2[0] - line_point1[0])
+            b = line_point1[1] - (m * line_point1[0])
+            pm = -(1 / m)
+            pb = point[1] - (pm * point[0])
+            x = (pb - b) / (m - pm)
+            y = (m * x) + b
+        elif line_point1[0] == line_point2[0] and line_point1[1] != line_point2[1]:
+            x = line_point1[0]
+            y = point[1]
+        elif line_point1[1] == line_point2[1] and line_point1[0] != line_point2[0]:
+            x = point[0]
+            y = line_point1[1]
+        else:
+            x = line_point1[0]
+            y = line_point1[1]
+        return x, y
+
+    @staticmethod
+    def all_perpendiculars_on_a_polygon_of_a_point(polygon_points, point):
+        if Polygon.is_point_in_convex_polygon(polygon_points, point):
+            return_list = []
+            for p in range(len(polygon_points)-1):
+                return_list.append(
+                    Polygon.point_on_line_perpendicular_to_point(polygon_points[p], polygon_points[p + 1], point)
+                )
+            return_list.append(
+                Polygon.point_on_line_perpendicular_to_point(polygon_points[-1], polygon_points[0], point)
+            )
+            return return_list
+        return False
+
+    @staticmethod
+    def collide_rotated_rectangles(movable_rect, static_rect):
+        if Polygon.which_rectangle_inside_another(movable_rect, static_rect):
+            all_perpendiculars = []
+            viable_perpendiculars = []
+            for point in movable_rect:
+                perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point(static_rect, point)
+                if perpendicular_points:
+                    for i in range(len(perpendicular_points)):
+                        all_perpendiculars.append((perpendicular_points[i][0] - point[0],
+                                                   perpendicular_points[i][1] - point[1]))
+            for point in static_rect:
+                perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point(movable_rect, point)
+                if perpendicular_points:
+                    for i in range(len(perpendicular_points)):
+                        all_perpendiculars.append((point[0] - perpendicular_points[i][0],
+                                                   point[1] - perpendicular_points[i][1]))
+            for point in all_perpendiculars:
+                temp_movable_rect = list(movable_rect)
+                for tp in range(len(temp_movable_rect)):
+                    tpx = temp_movable_rect[tp][0] + point[0]
+                    tpy = temp_movable_rect[tp][1] + point[1]
+                    temp_movable_rect[tp] = (tpx, tpy)
+                if not Polygon.which_rectangle_inside_another(temp_movable_rect, static_rect):
+                    viable_perpendiculars.append(point)
+            viable_perpendiculars = sorted(viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1]))
+            return viable_perpendiculars
+        return False
+
+
 # function for drawing all things on a surface. Simple, but very useful.
 # things: list of game objects or temporary game objects
 # surface: the screen window
@@ -990,9 +1041,11 @@ def update_things(things):
 
 
 if __name__ == "__main__":
+    pygame.init()
+    pygame.mixer.init()
     clock = pygame.time.Clock()
     man = GameObject(controls=[pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d], width=70, height=50,
-                     icon=pygame.image.load('a.png'), angle=90)
+                     icon=pygame.image.load('a.png'), angle=20)
 
     blok = GameObject(controls=[pygame.K_UP, pygame.K_LEFT, pygame.K_DOWN, pygame.K_RIGHT], width=100, height=70,
                       color=(0, 10, 10), x=10, y=10, angle=0)
@@ -1001,16 +1054,15 @@ if __name__ == "__main__":
     drawablethings = [man, blok]
     things = [man, blok]
     screen = Screen(700, 600)
-    pygame.init()
     while GameObject.check_events(players):
         update_things(things)
         screen.window.fill(screen.color)
         draw_things(drawablethings, screen.window)
         pygame.display.update()
-        p = GameObject.collide_rotated_rectangles(blok.hit_box, man.hit_box)
-        if p:
-            man.x -= p[0][0]
-            man.y -= p[0][1]
+        a = Polygon.collide_rotated_rectangles(movable_rect=man.hit_box, static_rect=blok.hit_box)
+        if a:
+            man.x -= a[0][0]
+            man.y -= a[0][0]
 
         clock.tick(60)
     pygame.quit()
