@@ -1,0 +1,44 @@
+.class-class {
+  border: 1px solid black;
+  border-radius: 3px;
+  overflow: auto;
+  display: inline-block;
+  width: auto;
+  max-width: 30%;
+  margin: 5px;
+}
+
+.class-name {
+  border: 1px solid black;
+  padding: 5px;
+  border-radius: 10px;
+  margin: 5px;
+  width: auto;
+}
+
+.class-function {
+  border: 2px solid #fcba03;
+  border-radius: 4px;
+  margin: 3px;
+  padding: 5px;
+}
+
+.function-parameters {
+  padding: 3px;
+  font-weight: bold;
+  border: 2px solid black;
+  color: brown;
+}
+
+.function-code {
+  padding: 3px;
+  border-left: 1px solid black;
+  border-right: 1px solid black;
+}
+
+.function-return-parameters {
+  padding: 3px;
+  font-weight: bold;
+  border: 2px solid black;
+  color: orange;
+}
