@@ -6,6 +6,7 @@
   width: auto;
   max-width: 30%;
   margin: 5px;
+  float: left;
 }
 
 .class-name {
@@ -17,15 +18,15 @@
 }
 
 .class-function {
-  border: 2px solid #fcba03;
+  border: 3px solid orange;
   border-radius: 4px;
   margin: 3px;
+  margin-bottom: 20px;
   padding: 5px;
 }
 
 .function-parameters {
   padding: 3px;
-  font-weight: bold;
   border: 2px solid black;
   color: brown;
 }
@@ -38,7 +39,42 @@
 
 .function-return-parameters {
   padding: 3px;
-  font-weight: bold;
   border: 2px solid black;
   color: orange;
+}
+
+.iterable-iterable-num-hint {
+  color: #51c6ed;
+  font-weight: bold;
+  text-shadow: 2px 2px 2px black;
+}
+
+
+.iterable-num-hint {
+  color: #51c6ed;
+  font-weight: bold;
+  text-shadow: 1px 1px 1px #3f64a1;
+}
+
+.num-hint {
+  color: #51c6ed;
+  font-weight: normal;
+}
+
+.string-hint {
+  color: #28b549;
+}
+
+.bool-hint {
+  font-weight: bold;
+  color: orange;
+}
+
+.function-called-parameters {
+  color: brown;
+}
+
+.builtin {
+  color: purple;
+  font-weight: normal;
 }
