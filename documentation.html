@@ -13,15 +13,126 @@
 
       <div class="class-function">
         <div class="function-parameters">
-          get_line_formula(p1, p2)
+          get_line_formula(<span class="iterable-num-hint">p1</span>, <span class="iterable-num-hint">p2</span>)
         </div>
         <div class="function-code">
           ...
         </div>
         <div class="function-return-parameters">
-          return m, b, 'Y'
+          return <span class="num-hint">m</span>, <span class="num-hint">b</span>, <span class="string-hint">'Y'</span>
+        </div>
+        <div class="function-return-parameters">
+            return <span class="num-hint">m</span>, <span class="num-hint">b</span>, <span class="string-hint">'X'</span>
+        </div>
+        <div class="function-return-parameters">
+            return <span class="num-hint">bx</span>, <span class="num-hint">by</span>, <span class="string-hint">'XY'</span>
         </div>
       </div>
+      <hr>
+      <div class="class-function">
+        <div class="function-parameters">
+          def sort_line(<span class="iterable-iterable-num-hint">line</span>, <span class="num-hint">index</span>)
+        </div>
+        <div class="function-code">
+          ...
+        </div>
+        <div class="function-return-parameters">
+          return <span class="iterable-iterable-num-hint">line</span>
+        </div>
+      </div>
+      <hr>
+      <div class="class-function">
+        <div class="function-parameters">
+          def collinear_on_segment(<span class="iterable-num-hint">p1</span>, <span class="iterable-num-hint">p2</span>, <span class="iterable-num-hint">p3</span>)
+        </div>
+        <div class="function-code">
+          ...
+        </div>
+        <div class="function-return-parameters">
+          return <span class="bool-hint">True</span>
+        </div>
+        <div class="function-return-parameters">
+          return <span class="bool-hint">False</span>
+        </div>
+      </div>
+      <hr>
+      <div class="class-function">
+        <div class="function-parameters">
+          def get_orientation(<span class="iterable-num-hint">p1</span>, <span class="iterable-num-hint">p2</span>, <span class="iterable-num-hint">p3</span>)
+        </div>
+        <div class="function-code">
+          ...
+        </div>
+        <div class="function-return-parameters">
+          return <span class="num-hint">1</span>
+        </div>
+        <div class="function-return-parameters">
+          return <span class="num-hint">2</span>
+        </div>
+        <div class="function-return-parameters">
+          return <span class="num-hint">4</span>
+        </div>
+      </div>
+      <hr>
+      <div class="class-function">
+        <div class="function-parameters">
+          def lines_intersect(<span class="iterable-iterable-num-hint">line1</span>, <span class="iterable-iterable-num-hint">line2</span>)
+        </div>
+        <div class="function-code">
+o1 = Polygon.<span class="function-called-parameters">get_orientation(<span class="iterable-num-hint">line1[0]</span>, <span class="iterable-num-hint">line1[1]</span>, <span class="iterable-num-hint">line2[0]</span>)</span> + \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Polygon.<span class="function-called-parameters">get_orientation(<span class="iterable-num-hint">line1[0]</span>, <span class="iterable-num-hint">line1[1]</span>, <span class="iterable-num-hint">line2[1]</span>) </span> <br>
+o2 = Polygon.<span class="function-called-parameters">get_orientation(<span class="iterable-num-hint">line1[1]</span>, <span class="iterable-num-hint">line1[0]</span>, <span class="iterable-num-hint">line2[0]</span>) </span> + \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Polygon.<span class="function-called-parameters">get_orientation(<span class="iterable-num-hint">line1[1]</span>, <span class="iterable-num-hint">line1[0]</span>, <span class="iterable-num-hint">line2[1]</span>) </span> <br> <br>
+
+o3 = Polygon.<span class="function-called-parameters">get_orientation(<span class="iterable-num-hint">line2[0]</span>, <span class="iterable-num-hint">line2[1]</span>, <span class="iterable-num-hint">line1[0]</span>)</span> + \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Polygon.<span class="function-called-parameters">get_orientation(<span class="iterable-num-hint">line2[0]</span>, <span class="iterable-num-hint">line2[1]</span>, <span class="iterable-num-hint">line1[1]</span>) </span> <br>
+o4 = Polygon.<span class="function-called-parameters">get_orientation(<span class="iterable-num-hint">line2[1]</span>, <span class="iterable-num-hint">line2[0]</span>, <span class="iterable-num-hint">line1[0]</span>) </span> + \
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Polygon.<span class="function-called-parameters">get_orientation(<span class="iterable-num-hint">line2[1]</span>, <span class="iterable-num-hint">line2[0]</span>, <span class="iterable-num-hint">line1[1]</span>) </span> <br>
+          ...
+        </div>
+        <div class="function-return-parameters">
+          return <span class="bool-hint">True</span>
+        </div>
+        <div class="function-return-parameters">
+          return <span class="bool-hint">False</span>
+        </div>
+      </div>
+      <hr>
+      <div class="class-function">
+        <div class="function-parameters">
+          def get_polygon_area(<span class="iterable-iterable-num-hint">polygon_points</span>)
+        </div>
+        <div class="function-return-parameters">
+          return <span class="num-hint">0.5</span> * <span class="builtin">abs(sum(<span class="num-hint">x0</span> * <span class="num-hint">y1</span> - <span class="num-hint">x1</span> * <span class="num-hint">y0</span></span>
+          for <span class="iterable-iterable-num-hint">(<span class="iterable-num-hint">(<span class="num-hint">x0</span>, <span class="num-hint">y0</span>)</span>, <span class="iterable-num-hint">(<span class="num-hint">x1</span>, <span class="num-hint">y1</span>)</span>)</span> in Polygon.<span class="function-called-parameters">segments(<span class="iterable-iterable-num-hint">polygon_points</span>)</span>))
+        </div>
+      </div>
+      <hr>
+      <div class="class-function">
+        <div class="function-parameters">
+          def segments(<span class="iterable-iterable-num-hint">polygon_points</span>)
+        </div>
+        <div class="function-return-parameters">
+          return <span class="builtin">zip(<span class="iterable-iterable-num-hint">polygon_points</span>, <span class="iterable-iterable-num-hint">polygon_points[1:]</span> + <span class="iterable-iterable-num-hint">[polygon_points[0]]</span>)</span>
+        </div>
+      </div>
+      <hr>
+      <div class="class-function">
+        <div class="function-parameters">
+          def do_polygons_intersect(<span class="iterable-iterable-num-hint">points1</span>, <span class="iterable-iterable-num-hint">points2</span>)
+        </div>
+        <div class="function-code">
+          ... <br>
+          if Polygon.<span class="function-called-parameters">lines_intersect(<span class="iterable-iterable-num-hint">line1</span>, <span class="iterable-iterable-num-hint">line2</span>):</span>
+        </div>
+        <div class="function-return-parameters">
+          return True
+        </div>
+        <div class="function-return-parameters">
+          return False
+        </div>
+      </div>
+
     </div>
   </body>
 </html>
