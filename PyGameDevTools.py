@@ -376,7 +376,19 @@ class GameObject(object):
             except TypeError:
                 pass
 
-    def evaluate_boxes(self):
+    def evaluate_hit_box_rotation(self):
+        x = GameObject.evaluate_operation(self.x, self.x_offset, self.x_offset_op)
+        y = GameObject.evaluate_operation(self.y, self.y_offset, self.y_offset_op)
+        width = GameObject.evaluate_operation(self.width, self.width_offset, self.width_offset_op)
+        height = GameObject.evaluate_operation(self.height, self.height_offset, self.height_offset_op)
+        if self.rotation_mode == 'AROUND':
+            pass
+        elif self.rotation_mode == 'CENTER':
+            pass
+        else:
+            pass
+
+    def evaluate_image_rotation(self):
         x = GameObject.evaluate_operation(self.x, self.x_offset, self.x_offset_op)
         y = GameObject.evaluate_operation(self.y, self.y_offset, self.y_offset_op)
         width = GameObject.evaluate_operation(self.width, self.width_offset, self.width_offset_op)
@@ -389,6 +401,7 @@ class GameObject(object):
             min_box = (min(box_rotate, key=lambda p: p[0])[0], min(box_rotate, key=lambda p: p[1])[1])
             max_box = (max(box_rotate, key=lambda p: p[0])[0], max(box_rotate, key=lambda p: p[1])[1])
             origin = (x + min_box[0], y - max_box[1])
+
             self.hit_box = [
                 (x + box_rotate[0][0], y + box_rotate[0][1] * -1),
                 (x + box_rotate[1][0], y + box_rotate[1][1] * -1),
@@ -403,14 +416,11 @@ class GameObject(object):
                 (0, -height)
             ]]
             box_rotate = [p.rotate(self.angle) for p in box]
-
             min_box = (min(box_rotate, key=lambda p: p[0])[0], min(box_rotate, key=lambda p: p[1])[1])
             max_box = (max(box_rotate, key=lambda p: p[0])[0], max(box_rotate, key=lambda p: p[1])[1])
-
             pivot = pygame.math.Vector2(width / 2, -height / 2)
             pivot_rotate = pivot.rotate(self.angle)
             pivot_move = pivot_rotate - pivot
-
             origin = (
                 x + min_box[0] - pivot_move[0],
                 y - max_box[1] + pivot_move[1]
@@ -418,7 +428,6 @@ class GameObject(object):
 
             or1x = origin[0] + box_rotate[0][0]
             or1y = origin[1] + box_rotate[0][1] * -1
-
             if self.angle // 90 % 2 != 0:
                 width, height = height, width
                 angle_sin = math.sin((self.angle - 90) / 180 * math.pi)
@@ -451,6 +460,7 @@ class GameObject(object):
                 point4
             ]
         else:
+
             if self.angle // 90 % 2 != 0:
                 width, height = height, width
                 angle_sin = math.sin((self.angle - 90) / 180 * math.pi)
@@ -952,7 +962,7 @@ class Polygon:
                 polygon_points[p - 1]
             )
             if Polygon.lines_intersect(point_line, polygon_line) \
-                    or polygon_points[p][1] == point[1]:
+                    or (polygon_line[0][1] == point[1] and polygon_line[0][0] > point[0]):
                 intersections += 1
 
         return intersections % 2 != 0
@@ -1026,26 +1036,23 @@ class Polygon:
                 distance = Polygon.hypotenuse(min_perpendicular_point, point)
                 if distance > sensitivity:
                     return True
-
         return False
 
     @staticmethod
     def collide_polygons(movable_polygon, static_polygon):
-        if Polygon.polygons_collide_number_inaccuracy(movable_polygon, static_polygon, sensitivity=0.5):
+        if Polygon.do_polygons_intersect(movable_polygon, static_polygon):
             all_perpendiculars = []
             viable_perpendiculars = []
             for point in movable_polygon:
                 if Polygon.is_point_in_polygon(static_polygon, point):
-                    perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point1and2(static_polygon,
-                                                                                                   point)
+                    perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point(static_polygon, point)
                     if perpendicular_points:
                         for perpendicular_point in perpendicular_points:
                             all_perpendiculars.append((perpendicular_point[0] - point[0],
                                                        perpendicular_point[1] - point[1]))
             for point in static_polygon:
                 if Polygon.is_point_in_polygon(movable_polygon, point):
-                    perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point1and2(movable_polygon,
-                                                                                                   point)
+                    perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point(movable_polygon, point)
                     if perpendicular_points:
                         for perpendicular_point in perpendicular_points:
                             all_perpendiculars.append((point[0] - perpendicular_point[0],
@@ -1056,11 +1063,9 @@ class Polygon:
                     tpx = temp_movable_polygon[tp][0] + point[0]
                     tpy = temp_movable_polygon[tp][1] + point[1]
                     temp_movable_polygon[tp] = (tpx, tpy)
-                # if not Polygon.do_polygons_intersect(temp_movable_polygon, static_polygon) or True:
-                if not Polygon.polygons_collide_number_inaccuracy(temp_movable_polygon, static_polygon, sensitivity=1.0):
+                # if not Polygon.do_polygons_intersect(temp_movable_polygon, static_polygon):
+                if not Polygon.polygons_collide_number_inaccuracy(temp_movable_polygon, static_polygon, sensitivity=0.5):
                     viable_perpendiculars.append(point)
-                else:
-                    print(point)
             viable_perpendiculars = sorted(viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1]))
             return viable_perpendiculars
         return False
@@ -1156,10 +1161,10 @@ if __name__ == "__main__":
     pygame.mixer.init()
     clock = pygame.time.Clock()
     man = GameObject(controls=[pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d], width=70, height=50,
-                     icon=pygame.image.load('a.png'), angle=0)
+                     icon=pygame.image.load('a.png'), angle=40)
 
     blok = GameObject(controls=[pygame.K_UP, pygame.K_LEFT, pygame.K_DOWN, pygame.K_RIGHT], width=100, height=70,
-                      color=(0, 10, 10), angle=0, x=50)
+                      color=(0, 10, 10), angle=40, x=50)
 
     players = [man, blok]
     drawablethings = [man, blok]
