@@ -519,6 +519,11 @@ class GameObject(object):
                     # We then delete the now useless object c. I don't know if this is needed, or if python's
                     # garbage collector would've cleaned it up the same regardless.
                     del c
+                elif counter.count == counter.range[0] or counter.count == counter.range[1]:
+                    counters = list(self.counters)
+                    counters.remove(counter)
+                    self.counters = tuple(counters)
+                    del counter
 
     def animate(self):
         # If we do have current animations (which, if we ever have animations, and none of our animations change our
@@ -654,48 +659,15 @@ class GameObject(object):
         # If the window wasn't closed, we return True in the end.
         return True
 
-    # Function to find the minimal collision of rectangles. Useful for basic object collision.
-    # movable_rect: any game object. Will be the one moved
-    # static_rect: any other game object. Will not be the one moved. You can still deduce where to move it if you like,
-    # by diving the cost by two, and moving both objects in opposite directions.
-    @staticmethod
-    def collide_not_rotated_rectangles(movable_rect, static_rect):
-        # Check if both rectangles are colliding at all
-        if pygame.Rect(movable_rect.x, movable_rect.y, movable_rect.width, movable_rect.height).colliderect(
-                pygame.Rect(static_rect.x, static_rect.y, static_rect.width, static_rect.height)):
-
-            # We find the difference between the bottom of the static rect and the top of the movable rect
-            cost_down = static_rect.y + static_rect.height - movable_rect.y
-            # We find the difference between the bottom of the movable rect and the top of the static rect
-            cost_up = movable_rect.y + movable_rect.height - static_rect.y
-            # We find the difference between the right of the static rect and the left of the movable rect
-            cost_right = static_rect.x + static_rect.width - movable_rect.x
-            # We find the difference between the right of the movable rect and the left of the static rect
-            cost_left = movable_rect.x + movable_rect.width - static_rect.x
-
-            # Find the minimal cost of moving each direction, to get realistic collision
-            minimal_cost = min(cost_down, cost_up, cost_right, cost_left)
-            # Check which direction takes minimal effort and return values accordingly
-            if minimal_cost == cost_left:
-                return ["LEFT", cost_left]
-            if minimal_cost == cost_right:
-                return ["RIGHT", cost_right]
-            if minimal_cost == cost_up:
-                return ["UP", cost_up]
-            if minimal_cost == cost_down:
-                return ["DOWN", cost_down]
-        return False
-
     @staticmethod
     def evaluate_operation(val1, val2, operator):
         if operator == '+':
             return val1 + val2
-        elif operator == '*':
+        if operator == '*':
             return val1 * val2
-        elif operator == '=':
+        if operator == '=':
             return val2
-        else:
-            return val1
+        return val1
 
     @staticmethod
     def calculate_operations(val1, val2, operator):
@@ -831,22 +803,58 @@ class Screen(object):
         self.window = pygame.display.set_mode((self.width, self.height))
 
 
-class Polygon(object):
-    def __init__(self, points):
-        self.points = points
+class Polygon:
 
-    def draw(self, surface, color, width):
-        pygame.draw.polygon(surface, color, self.points, width)
+    # Function to find the minimal collision of rectangles. Useful for basic object collision.
+    # movable_rect: any game object. Will be the one moved
+    # static_rect: any other game object. Will not be the one moved. You can still deduce where to move it if you like,
+    # by diving the cost by two, and moving both objects in opposite directions.
+    @staticmethod
+    def collide_not_rotated_rectangles(movable_rect, static_rect):
+        # Check if both rectangles are colliding at all
+        if pygame.Rect(movable_rect.x, movable_rect.y, movable_rect.width, movable_rect.height).colliderect(
+                pygame.Rect(static_rect.x, static_rect.y, static_rect.width, static_rect.height)):
+
+            # We find the difference between the bottom of the static rect and the top of the movable rect
+            cost_down = static_rect.y + static_rect.height - movable_rect.y
+            # We find the difference between the bottom of the movable rect and the top of the static rect
+            cost_up = movable_rect.y + movable_rect.height - static_rect.y
+            # We find the difference between the right of the static rect and the left of the movable rect
+            cost_right = static_rect.x + static_rect.width - movable_rect.x
+            # We find the difference between the right of the movable rect and the left of the static rect
+            cost_left = movable_rect.x + movable_rect.width - static_rect.x
+
+            # Find the minimal cost of moving each direction, to get realistic collision
+            minimal_cost = min(cost_down, cost_up, cost_right, cost_left)
+            # Check which direction takes minimal effort and return values accordingly
+            if minimal_cost == cost_left:
+                return ["LEFT", cost_left]
+            if minimal_cost == cost_right:
+                return ["RIGHT", cost_right]
+            if minimal_cost == cost_up:
+                return ["UP", cost_up]
+            if minimal_cost == cost_down:
+                return ["DOWN", cost_down]
+        return False
 
     @staticmethod
     def get_line_formula(p1, p2):
-        m = (p2[1] - p1[1]) / (p2[0] - p1[0]) if p1[0] != p2[0] else 0
-        b = p1[1] - (p1[0] * m)
-        return m, b
+        if p1[0] != p2[0]:
+            m = (p2[1] - p1[1]) / (p2[0] - p1[0])
+            b = p1[1] - (p1[0] * m)
+            return m, b, 'Y'
+        elif p1[1] != p2[1]:
+            m = 0
+            b = 0
+            return m, b, 'X'
+        else:
+            bx = p1[0]
+            by = p1[1]
+            return bx, by, 'XY'
 
     @staticmethod
     def sort_line(line, index):
-        line[0][index], line[1][index] = min(line[0][index], line[1][index]), max(line[0][index], line[1][index])
+        line = sorted(list(line), key=lambda x: x[index])
         return line
 
     @staticmethod
@@ -866,24 +874,23 @@ class Polygon(object):
         elif val < 0:
             return 2
         else:
-            return 0
+            return 4
 
     @staticmethod
     def lines_intersect(line1, line2):
-        o1 = Polygon.get_orientation(line1[0], line1[1], line2[0])
-        o2 = Polygon.get_orientation(line1[0], line1[1], line2[1])
-        o3 = Polygon.get_orientation(line2[0], line2[1], line1[0])
-        o4 = Polygon.get_orientation(line2[0], line2[1], line1[1])
-        if o1 != o2 and o3 != o4:
-            return True
+        o1 = Polygon.get_orientation(line1[0], line1[1], line2[0]) + \
+             Polygon.get_orientation(line1[0], line1[1], line2[1])
+        o2 = Polygon.get_orientation(line1[1], line1[0], line2[0]) + \
+             Polygon.get_orientation(line1[1], line1[0], line2[1])
 
-        if o1 == 0 and Polygon.collinear_on_segment(line1[0], line1[1], line2[0]):
-            return True
-        if o2 == 0 and Polygon.collinear_on_segment(line1[0], line1[1], line2[1]):
-            return True
-        if o3 == 0 and Polygon.collinear_on_segment(line2[0], line2[1], line1[0]):
-            return True
-        if o4 == 0 and Polygon.collinear_on_segment(line2[0], line2[1], line1[1]):
+        o3 = Polygon.get_orientation(line2[0], line2[1], line1[0]) + \
+             Polygon.get_orientation(line2[0], line2[1], line1[1])
+        o4 = Polygon.get_orientation(line2[1], line2[0], line1[0]) + \
+             Polygon.get_orientation(line2[1], line2[0], line1[1])
+        if o1 % 2 and o1 < 5 \
+                and o2 % 2 and o2 < 5 \
+                and o3 % 2 and o3 < 5 \
+                and o4 % 2 and o4 < 5:
             return True
 
         return False
@@ -898,11 +905,11 @@ class Polygon(object):
         return zip(polygon_points, polygon_points[1:] + [polygon_points[0]])
 
     @staticmethod
-    def is_point_in_convex_polygon(polygon_points, point):
+    def is_point_in_convex_polygon(polygon_points, point, sensitivity=10.0):
         polygon_area = Polygon.get_polygon_area(polygon_points)
 
         point_area = 0
-        for p in range(len(polygon_points) - 1):
+        for p in range(len(polygon_points) - 1, -1, -1):
             a = polygon_points[p]
             b = polygon_points[p + 1]
             if a == point or b == point:
@@ -924,105 +931,209 @@ class Polygon(object):
                                  (abp_perimeter - bp) *
                                  (abp_perimeter - ap))
             point_area += abp_area
-
-        a = polygon_points[-1]
-        b = polygon_points[0]
-        if a == point or b == point:
-            return -2
-        ab = math.sqrt(((a[0] - b[0]) ** 2) +
-                       ((a[1] - b[1]) ** 2))
-        ap = math.sqrt(((a[0] - point[0]) ** 2) +
-                       ((a[1] - point[1]) ** 2))
-        bp = math.sqrt(((b[0] - point[0]) ** 2) +
-                       ((b[1] - point[1]) ** 2))
-        if (ab + ap <= bp) \
-                or (ap + bp <= ab) \
-                or (bp + ab <= ap):
-            return -1
-        abp_perimeter = (ab + ap + bp) / 2
-        abp_area = math.sqrt(abp_perimeter *
-                             (abp_perimeter - ab) *
-                             (abp_perimeter - bp) *
-                             (abp_perimeter - ap))
-        point_area += abp_area
-
-        if point_area <= polygon_area:
+        if point_area <= polygon_area + sensitivity:
             return True
-        print(point_area, polygon_area)
         return False
 
     @staticmethod
-    def which_rectangle_inside_another(rectangle_points1, rectangle_points2):
-        for point in rectangle_points1:
-            if Polygon.is_point_in_convex_polygon(rectangle_points2, point):
-                return 1
-        for point in rectangle_points2:
-            if Polygon.is_point_in_convex_polygon(rectangle_points1, point):
-                return 2
+    def is_point_in_polygon(polygon_points, point):
+        point_line = (
+            point,
+            (
+                1000000000000,
+                point[1]
+            )
+        )
+        intersections = 0
+
+        for p in range(len(polygon_points) - 1, -1, -1):
+            polygon_line = (
+                polygon_points[p],
+                polygon_points[p - 1]
+            )
+            if Polygon.lines_intersect(point_line, polygon_line) \
+                    or polygon_points[p][1] == point[1]:
+                intersections += 1
+
+        return intersections % 2 != 0
+
+    @staticmethod
+    def do_polygons_intersect(points1, points2):
+        for p1 in range(len(points1) - 1, -1, -1):
+            line1 = points1[p1], points1[p1 - 1]
+            for p2 in range(len(points2) - 1, -1, -1):
+                line2 = points2[p2], points2[p2 - 1]
+                if Polygon.lines_intersect(line1, line2):
+                    return True
         return False
+
+    @staticmethod
+    def which_polygon_inside_another(polygon_points1, polygon_points2):
+        which = 0
+        for point in polygon_points1:
+            if Polygon.is_point_in_polygon(polygon_points2, point):
+                which += 1
+                break
+        for point in polygon_points2:
+            if Polygon.is_point_in_polygon(polygon_points1, point):
+                which += 2
+                break
+        return which
 
     @staticmethod
     def point_on_line_perpendicular_to_point(line_point1, line_point2, point):
-        if line_point1[0] != line_point2[0] and line_point1[1] != line_point2[1]:
-            m = (line_point2[1] - line_point1[1]) / (line_point2[0] - line_point1[0])
-            b = line_point1[1] - (m * line_point1[0])
+        m, b, info = Polygon.get_line_formula(line_point1, line_point2)
+        if info == 'Y' and m != 0:
             pm = -(1 / m)
             pb = point[1] - (pm * point[0])
-            x = (pb - b) / (m - pm)
+            x = (b - pb) / (pm - m)
             y = (m * x) + b
-        elif line_point1[0] == line_point2[0] and line_point1[1] != line_point2[1]:
+        elif info == 'X':
             x = line_point1[0]
             y = point[1]
-        elif line_point1[1] == line_point2[1] and line_point1[0] != line_point2[0]:
+        elif m == 0:
             x = point[0]
             y = line_point1[1]
         else:
-            x = line_point1[0]
-            y = line_point1[1]
+            x = m
+            y = b
         return x, y
 
     @staticmethod
     def all_perpendiculars_on_a_polygon_of_a_point(polygon_points, point):
-        if Polygon.is_point_in_convex_polygon(polygon_points, point):
-            return_list = []
-            for p in range(len(polygon_points)-1):
-                return_list.append(
-                    Polygon.point_on_line_perpendicular_to_point(polygon_points[p], polygon_points[p + 1], point)
-                )
+        return_list = []
+        for p in range(len(polygon_points) - 1, -1, -1):
             return_list.append(
-                Polygon.point_on_line_perpendicular_to_point(polygon_points[-1], polygon_points[0], point)
+                Polygon.point_on_line_perpendicular_to_point(polygon_points[p], polygon_points[p - 1], point)
             )
-            return return_list
+        return return_list
+
+    @staticmethod
+    def polygons_collide_number_inaccuracy(polygon_points1, polygon_points2, sensitivity=1.0):
+        for point in polygon_points1:
+            if Polygon.is_point_in_polygon(polygon_points2, point):
+                perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point1and2(polygon_points2, point)
+                min_perpendicular_point = \
+                    sorted(list(perpendicular_points), key=lambda x: Polygon.hypotenuse(x, point))[0]
+                distance = Polygon.hypotenuse(min_perpendicular_point, point)
+                if distance > sensitivity:
+                    return True
+        for point in polygon_points2:
+            if Polygon.is_point_in_polygon(polygon_points1, point):
+                perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point1and2(polygon_points1, point)
+                min_perpendicular_point = \
+                    sorted(list(perpendicular_points), key=lambda x: Polygon.hypotenuse(x, point))[0]
+                distance = Polygon.hypotenuse(min_perpendicular_point, point)
+                if distance > sensitivity:
+                    return True
+
         return False
 
     @staticmethod
-    def collide_rotated_rectangles(movable_rect, static_rect):
-        if Polygon.which_rectangle_inside_another(movable_rect, static_rect):
+    def collide_polygons(movable_polygon, static_polygon):
+        if Polygon.polygons_collide_number_inaccuracy(movable_polygon, static_polygon, sensitivity=0.5):
             all_perpendiculars = []
             viable_perpendiculars = []
-            for point in movable_rect:
-                perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point(static_rect, point)
-                if perpendicular_points:
-                    for i in range(len(perpendicular_points)):
-                        all_perpendiculars.append((perpendicular_points[i][0] - point[0],
-                                                   perpendicular_points[i][1] - point[1]))
-            for point in static_rect:
-                perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point(movable_rect, point)
-                if perpendicular_points:
-                    for i in range(len(perpendicular_points)):
-                        all_perpendiculars.append((point[0] - perpendicular_points[i][0],
-                                                   point[1] - perpendicular_points[i][1]))
+            for point in movable_polygon:
+                if Polygon.is_point_in_polygon(static_polygon, point):
+                    perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point1and2(static_polygon,
+                                                                                                   point)
+                    if perpendicular_points:
+                        for perpendicular_point in perpendicular_points:
+                            all_perpendiculars.append((perpendicular_point[0] - point[0],
+                                                       perpendicular_point[1] - point[1]))
+            for point in static_polygon:
+                if Polygon.is_point_in_polygon(movable_polygon, point):
+                    perpendicular_points = Polygon.all_perpendiculars_on_a_polygon_of_a_point1and2(movable_polygon,
+                                                                                                   point)
+                    if perpendicular_points:
+                        for perpendicular_point in perpendicular_points:
+                            all_perpendiculars.append((point[0] - perpendicular_point[0],
+                                                       point[1] - perpendicular_point[1]))
             for point in all_perpendiculars:
-                temp_movable_rect = list(movable_rect)
-                for tp in range(len(temp_movable_rect)):
-                    tpx = temp_movable_rect[tp][0] + point[0]
-                    tpy = temp_movable_rect[tp][1] + point[1]
-                    temp_movable_rect[tp] = (tpx, tpy)
-                if not Polygon.which_rectangle_inside_another(temp_movable_rect, static_rect):
+                temp_movable_polygon = list(movable_polygon)
+                for tp in range(len(temp_movable_polygon)):
+                    tpx = temp_movable_polygon[tp][0] + point[0]
+                    tpy = temp_movable_polygon[tp][1] + point[1]
+                    temp_movable_polygon[tp] = (tpx, tpy)
+                # if not Polygon.do_polygons_intersect(temp_movable_polygon, static_polygon) or True:
+                if not Polygon.polygons_collide_number_inaccuracy(temp_movable_polygon, static_polygon, sensitivity=1.0):
                     viable_perpendiculars.append(point)
+                else:
+                    print(point)
             viable_perpendiculars = sorted(viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1]))
             return viable_perpendiculars
         return False
+
+    @staticmethod
+    def all_perpendiculars_on_a_polygon_of_a_point1and2(polygon_points, point):
+        return_list = []
+        for p in range(len(polygon_points) - 1, -1, -1):
+            result1 = Polygon.point_on_line_perpendicular_to_point(polygon_points[p], polygon_points[p - 1], point)
+            result2 = Polygon.point_on_line_perpendicular_to_point2(polygon_points[p], polygon_points[p - 1], point)
+            result = (result1[0] + result2[0]) / 2, (result1[1] + result2[1]) / 2
+            return_list.append(result)
+        return return_list
+
+    @staticmethod
+    def all_perpendiculars_on_a_polygon_of_a_point2(polygon_points, point):
+        return_list = []
+        for p in range(len(polygon_points) - 1, -1, -1):
+            return_list.append(
+                Polygon.point_on_line_perpendicular_to_point2(polygon_points[p], polygon_points[p - 1], point)
+            )
+        return return_list
+
+    @staticmethod
+    def point_on_line_perpendicular_to_point2(line_point1, line_point2, point):
+        line_point1, line_point2 = Polygon.sort_line((line_point1, line_point2), 1)
+        line_angle, hypotenuse = Polygon.line_angle_rad_cos(line_point1, line_point2)
+        rotated = Polygon.rotate_points_around_origin(line_point1, [point], -line_angle)
+        perpendicular_point = rotated[0][0], line_point1[1]
+        rotated = Polygon.rotate_points_around_origin(line_point1, [perpendicular_point], line_angle)
+        return rotated[0]
+
+    @staticmethod
+    def rotate_points_around_origin(origin_point, points, angle):
+        final_points = []
+        for point in points:
+            x, y = point
+            offset_x, offset_y = origin_point
+            adjusted_x = (x - offset_x)
+            adjusted_y = (y - offset_y)
+            cos_rad = math.cos(angle)
+            sin_rad = math.sin(angle)
+            qx = offset_x - cos_rad * adjusted_x + sin_rad * adjusted_y
+            qy = offset_y - sin_rad * adjusted_x + cos_rad * adjusted_y
+            final_points.append((qx, qy))
+        return final_points
+
+    @staticmethod
+    def line_angle_rad_cos(line_point1, line_point2):
+        hypotenuse = Polygon.hypotenuse(line_point1, line_point2)
+        if hypotenuse > 0:
+            angle = math.acos((line_point2[0] - line_point1[0]) / hypotenuse)
+        else:
+            angle = 0
+        return angle, hypotenuse
+
+    @staticmethod
+    def line_angle_rad_sin(line_point1, line_point2):
+        hypotenuse = Polygon.hypotenuse(line_point1, line_point2)
+        if hypotenuse > 0:
+            angle = math.asin((line_point2[1] - line_point1[1]) / hypotenuse)
+        else:
+            angle = 0
+        return angle, hypotenuse
+
+    @staticmethod
+    def line_angle_rad_tan(line_point1, line_point2):
+        angle = math.atan2(line_point1[1] - line_point2[1], line_point1[0] - line_point2[0])
+        return angle, Polygon.hypotenuse(line_point1, line_point2)
+
+    @staticmethod
+    def hypotenuse(point1, point2):
+        return math.sqrt((point2[0] - point1[0]) ** 2 + (point2[1] - point1[1]) ** 2)
 
 
 # function for drawing all things on a surface. Simple, but very useful.
@@ -1045,10 +1156,10 @@ if __name__ == "__main__":
     pygame.mixer.init()
     clock = pygame.time.Clock()
     man = GameObject(controls=[pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d], width=70, height=50,
-                     icon=pygame.image.load('a.png'), angle=20)
+                     icon=pygame.image.load('a.png'), angle=0)
 
     blok = GameObject(controls=[pygame.K_UP, pygame.K_LEFT, pygame.K_DOWN, pygame.K_RIGHT], width=100, height=70,
-                      color=(0, 10, 10), x=10, y=10, angle=0)
+                      color=(0, 10, 10), angle=0, x=50)
 
     players = [man, blok]
     drawablethings = [man, blok]
@@ -1059,10 +1170,17 @@ if __name__ == "__main__":
         screen.window.fill(screen.color)
         draw_things(drawablethings, screen.window)
         pygame.display.update()
-        a = Polygon.collide_rotated_rectangles(movable_rect=man.hit_box, static_rect=blok.hit_box)
-        if a:
-            man.x -= a[0][0]
-            man.y -= a[0][0]
+        a = Polygon.collide_polygons(movable_polygon=man.hit_box, static_polygon=blok.hit_box)
+        print(a)
+        try:
+            man.x += a[0][0]
+            man.y += a[0][1]
+            if abs(a[0][0]) + abs(a[0][1]) > 2:
+                print("ERROR!")
+                print(man.hit_box)
+                print(blok.hit_box)
+        except Exception:
+            pass
 
         clock.tick(60)
     pygame.quit()
