@@ -2,38 +2,98 @@ import pygame
 import numpy as np
 import math
 from shapely.geometry import Polygon as pol
+from decimal import *
+from typing import Union
 
 
-class DefaultEvents:
+class Events:
+    # These two are probably redundant because of class Func
+    #
+    # @staticmethod
+    # def exec_func(obj, do_func, do_args=()):
+    #     if callable(do_func):
+    #         do_func(obj=obj, args=do_args)
+    #         return True
+    #     return False
+    #
+    # @staticmethod
+    # def exec_cond_func(obj, do_func, cond_func, do_args=(), cond_args=()):
+    #     if callable(cond_func):
+    #         cond_func(obj=obj, args=cond_args, func=do_func, func_args=do_args)
+    #         return True
+    #     return False
+
     @staticmethod
-    def move(obj):
+    def pass_function(**dump):
+        pass
+
+    @staticmethod
+    def animate_start(obj, kwargs: dict, **dump):
+        obj.temporarily_change_variables(
+            t=kwargs['t'],
+            before=kwargs['before'],
+            after=kwargs['after'],
+        )
+        # We then set the animation to not play anymore.
+        obj.play_animation = False
+        # And if our animations haven't been overwritten by our animation already to contain nothing,
+        if obj.animations:
+            # We make them into a temporary list to make them mutable
+            animations = list(obj.animations)
+            # We move the first element to be the last element
+            animations.append(animations.pop(0))
+            # We make that temporary list into a tuple and set our animations to it
+            obj.animations = tuple(animations)
+
+    @staticmethod
+    def animate_end(obj, kwargs: dict, **dump):
+        GameObject.change_variables(obj, kwargs['before'])
+        if kwargs['parent'] in obj.animations:
+            obj.play_animation = True
+
+    @staticmethod
+    def move_shortcut(obj, **dump):
+        try:
+            if obj.pressed_controls[0]:
+                obj.y -= obj.speed[0] * obj.speed_axis[0]
+            if obj.pressed_controls[0]:
+                obj.x -= obj.speed[1] * obj.speed_axis[1]
+            if obj.pressed_controls[2]:
+                obj.y += obj.speed[2] * obj.speed_axis[2]
+            if obj.pressed_controls[3]:
+                obj.x += obj.speed[3] * obj.speed_axis[3]
+        except TypeError:
+            pass
+
+    @staticmethod
+    def move(obj, kwargs: dict = None, **dump):
         try:
             for i in range(min(len(obj.pressed_controls), len(obj.on_pressed_controls))):
                 if obj.pressed_controls[i]:
-                    obj.on_pressed_controls[i](obj)
+                    obj.on_pressed_controls[i].execute(obj=obj, kwargs=kwargs)
         # If the object is actually Temporary Game object, and some of the used variables are empty strings, we
         # just ignore that error.
         except TypeError:
             pass
 
     @staticmethod
-    def move_0(obj):
+    def move_0(obj, **dump):
         obj.y -= obj.speed[0] * obj.speed_axis[0]
 
     @staticmethod
-    def move_1(obj):
+    def move_1(obj, **dump):
         obj.x -= obj.speed[1] * obj.speed_axis[1]
 
     @staticmethod
-    def move_2(obj):
+    def move_2(obj, **dump):
         obj.y += obj.speed[2] * obj.speed_axis[2]
 
     @staticmethod
-    def move_3(obj):
+    def move_3(obj, **dump):
         obj.x += obj.speed[3] * obj.speed_axis[3]
 
     @staticmethod
-    def move_rotated(obj):
+    def move_rotated_shortcut(obj, **dump):
         cos = math.cos(obj.angle / 180 * math.pi)
         sin = math.sin(obj.angle / 180 * math.pi)
         if obj.pressed_controls[0]:
@@ -50,42 +110,55 @@ class DefaultEvents:
             obj.y -= cos * obj.speed[3] * obj.speed_axis[0]
 
     @staticmethod
-    def move_0_rotated(obj):
+    def move_0_rotated(obj, **dump):
         cos = math.cos(obj.angle / 180 * math.pi)
         sin = math.sin(obj.angle / 180 * math.pi)
         obj.x -= sin * obj.speed[0] * obj.speed_axis[1]
         obj.y -= cos * obj.speed[0] * obj.speed_axis[0]
 
     @staticmethod
-    def move_1_rotated(obj):
+    def move_1_rotated(obj, **dump):
         cos = math.cos(obj.angle / 180 * math.pi)
         sin = math.sin(obj.angle / 180 * math.pi)
         obj.x -= sin * obj.speed[1] * obj.speed_axis[1]
         obj.y += cos * obj.speed[1] * obj.speed_axis[2]
 
     @staticmethod
-    def move_2_rotated(obj):
+    def move_2_rotated(obj, **dump):
         cos = math.cos(obj.angle / 180 * math.pi)
         sin = math.sin(obj.angle / 180 * math.pi)
         obj.x += sin * obj.speed[2] * obj.speed_axis[3]
         obj.y += cos * obj.speed[2] * obj.speed_axis[2]
 
     @staticmethod
-    def move_3_rotated(obj):
+    def move_3_rotated(obj, **dump):
         cos = math.cos(obj.angle / 180 * math.pi)
         sin = math.sin(obj.angle / 180 * math.pi)
         obj.x += sin * obj.speed[3] * obj.speed_axis[3]
         obj.y -= cos * obj.speed[3] * obj.speed_axis[0]
 
-    @staticmethod
-    def pass_function(obj):
-        pass
+
+class Func(object):
+    def __init__(self, func, kwargs: dict = None):
+        if kwargs is None:
+            kwargs = {}
+        self.func = func
+        self.kwargs = kwargs
+
+    def execute(self, obj, kwargs: dict = None):
+        if kwargs is None:
+            kwargs = self.kwargs
+
+        if 'after' in kwargs:
+            kwargs['after'].kwargs['parent'] = self
+
+        self.func(obj=obj, kwargs=kwargs)
 
 
 # Class for bezier curves. It's math and I'm too bored to explain it.
 class Bezier:
     @staticmethod
-    def two_points(t, p1, p2):
+    def two_points(t: float, p1, p2):
         if not isinstance(p1, np.ndarray) or not isinstance(p2, np.ndarray):
             raise TypeError("Points must be an instance of the numpy.ndarray!")
         if not isinstance(t, (int, float)):
@@ -95,14 +168,14 @@ class Bezier:
         return q1
 
     @staticmethod
-    def points(t, points):
+    def points(t: float, points):
         new_points = []
         for i in range(0, len(points) - 1):
             new_points += [Bezier.two_points(t, points[i], points[i + 1])]
         return new_points
 
     @staticmethod
-    def point(t, points):
+    def point(t: float, points):
         while len(points) > 1:
             points = Bezier.points(t, points)
         return points[0]
@@ -140,7 +213,7 @@ class Animation:
     # Why make those points into local movement? Well, it's more useful. You can't move the game object with a global
     # point animation, but you can do that with a local movement animation.
     @staticmethod
-    def calculate_movement_points(t, key_points, curve_type):
+    def calculate_movement_points(t: int, key_points, curve_type: str):
         if curve_type == "LINE":
             movement_points = Animation.extend_linear_movement(
                 Animation.global_points_to_local_movement(key_points), t
@@ -194,7 +267,7 @@ class Animation:
     # This makes animations slower and smoother.
     # The t parameter corresponds to the desired final length of list of movements
     @staticmethod
-    def extend_linear_movement(points, t=60):
+    def extend_linear_movement(points, t: int = 60):
         final_points = []
 
         # Find the extension number to divide and multiply by to achieve desired final list length
@@ -236,10 +309,15 @@ class Animation:
     # This makes an empty animation, usually used for converting movement points into correct animation format.
     # Why use this? It's simply easier than typing it out yourself. Basically, syntax sugar.
     @staticmethod
-    def generate_empty_animations(length):
+    def generate_empty_animations(length: int):
         # Return the empty (and useless) animation element layout times desired length.
         return [
-            [1, TempGameObject(), TempGameObject()],
+                   Func(
+                       Events.animate_start,
+                       {'t': 1, 'before': TempGameObject(), 'after': Func(Events.animate_end,
+                                                                            {'before': TempGameObject()}
+                                                                            )}
+                   ),
         ] * length
 
     # Converts movement points into playable animations
@@ -266,11 +344,11 @@ class Animation:
         for i in range(len(points)):
             # Go through each value of each element of points
             for j in range(len(points[i])):
-                replaced_attribute = getattr(animations[i][1], replaced_values[j])
+                replaced_attribute = getattr(animations[i]['before'], replaced_values[j])
                 value = GameObject.evaluate_operation_between_different_types(
                     replaced_attribute, points[i][j], values_operations[j]
                 )
-                setattr(animations[i][1], replaced_values[j], value)
+                setattr(animations[i]['before'], replaced_values[j], value)
         # Convert back to tuple and return that
         return tuple(animations)
 
@@ -325,20 +403,20 @@ class GameObject(object):
     # an additional value to help animations,
     def __init__(
         self,
-        x=0,
-        y=0,
-        width=10,
-        height=10,
-        x_offset=0,
-        y_offset=0,
-        width_offset=0,
-        height_offset=0,
-        x_offset_op="+",
-        y_offset_op="+",
-        width_offset_op="+",
-        height_offset_op="+",
-        angle=0.0,
-        rotation_mode="CENTER",
+        x = 0,
+        y: int = 0,
+        width: int = 10,
+        height: int = 10,
+        x_offset: int = 0,
+        y_offset: int = 0,
+        width_offset: int = 0,
+        height_offset: int = 0,
+        x_offset_op: str = '+',
+        y_offset_op: str = '+',
+        width_offset_op: str = '+',
+        height_offset_op: str = '+',
+        angle: float = 0.0,
+        rotation_mode: str = 'CENTER',
         hit_box=(),
         origin=(),
         controls=(None, None, None, None),
@@ -348,13 +426,14 @@ class GameObject(object):
         icon=None,
         hit_box_color=(255, 0, 0),
         sound=None,
-        sound_volume=1.0,
-        sound_channel=0,
-        sound_loop_mode=0,
-        sound_fade_in_ms=0,
-        weight=0.5,
+        sound_volume: float = 1.0,
+        sound_channel: int = 0,
+        sound_loop_mode: int = 0,
+        sound_fade_in_ms: int = 0,
+        weight: float = 0.5,
         animations=(),
         counters=(),
+        other_events=()
     ):
         self.x = x
         self.y = y
@@ -391,6 +470,8 @@ class GameObject(object):
         # animation play only once until the next animation comes. This is extremely important.
         self.play_animation = True
         self.counters = counters
+
+        self.other_events = other_events
 
         if not hit_box:
             self.original_hit_box = (
@@ -438,6 +519,8 @@ class GameObject(object):
     # Method to update the game object. Mostly useful for player movement, counters and animation. Should be called
     # every frame for each game object.
     def update(self):
+        for event in self.other_events:
+            event(self)
         self.move_rotated()
         self.evaluate_image_rotation()
         self.bounding_box = Polygon.get_bounding_box(self.moved_rotated_hit_box)
@@ -576,16 +659,6 @@ class GameObject(object):
                 max(box_rotate, key=lambda p: p[1])[1],
             )
             origin = (x + min_box[0], y - max_box[1])
-
-            # Old bullshit, only works with rotated rectangles (hit_box)
-            # It's very compact though, if you want to, you can use this. But you probably shouldn't.
-            #
-            # self.rotated_hit_box = [
-            #     (x + box_rotate[0][0], y + box_rotate[0][1] * -1),
-            #     (x + box_rotate[1][0], y + box_rotate[1][1] * -1),
-            #     (x + box_rotate[2][0], y + box_rotate[2][1] * -1),
-            #     (x + box_rotate[3][0], y + box_rotate[3][1] * -1),
-            # ]
         elif self.rotation_mode == "CENTER":
             box = [
                 pygame.math.Vector2(p)
@@ -604,78 +677,8 @@ class GameObject(object):
             pivot_rotate = pivot.rotate(self.angle)
             pivot_move = pivot_rotate - pivot
             origin = (x + min_box[0] - pivot_move[0], y - max_box[1] + pivot_move[1])
-
-            # Old bullshit, only works with rotated rectangles (hit_box)
-            #
-            # or1x = origin[0] + box_rotate[0][0]
-            # or1y = origin[1] + box_rotate[0][1] * -1
-            # if self.angle // 90 % 2 != 0:
-            #     width, height = height, width
-            #     angle_sin = math.sin((self.angle - 90) / 180 * math.pi)
-            #     angle_cos = math.cos((self.angle - 90) / 180 * math.pi)
-            # else:
-            #     angle_sin = math.sin(self.angle / 180 * math.pi)
-            #     angle_cos = math.cos(self.angle / 180 * math.pi)
-            # angle_sin = abs(angle_sin)
-            # angle_cos = abs(angle_cos)
-            # point1 = (
-            #     or1x,
-            #     or1y + angle_sin * width
-            # )
-            # point2 = (
-            #     or1x + angle_cos * width,
-            #     or1y
-            # )
-            # point3 = (
-            #     or1x + angle_cos * width + angle_sin * height,
-            #     or1y + angle_cos * height
-            # )
-            # point4 = (
-            #     or1x + angle_sin * height,
-            #     or1y + angle_sin * width + angle_cos * height
-            # )
-            # self.hit_box = [
-            #     point1,
-            #     point2,
-            #     point3,
-            #     point4
-            # ]
         else:
             pass
-            # Old bullshit, only works with rotated rectangles. But why would you even want to use this one????????
-            # It's anchor is constantly moving and it's useless for anything I can imagine!
-            #
-            # if self.angle // 90 % 2 != 0:
-            #     width, height = height, width
-            #     angle_sin = math.sin((self.angle - 90) / 180 * math.pi)
-            #     angle_cos = math.cos((self.angle - 90) / 180 * math.pi)
-            # else:
-            #     angle_sin = math.sin(self.angle / 180 * math.pi)
-            #     angle_cos = math.cos(self.angle / 180 * math.pi)
-            # angle_sin = abs(angle_sin)
-            # angle_cos = abs(angle_cos)
-            # point1 = (
-            #     x,
-            #     y + angle_sin * width
-            # )
-            # point2 = (
-            #     x + angle_cos * width,
-            #     y
-            # )
-            # point3 = (
-            #     x + angle_cos * width + angle_sin * height,
-            #     y + angle_cos * height
-            # )
-            # point4 = (
-            #     x + angle_sin * height,
-            #     y + angle_sin * width + angle_cos * height
-            # )
-            # self.hit_box = [
-            #     point1,
-            #     point2,
-            #     point3,
-            #     point4
-            # ]
 
         self.image_origin = origin
 
@@ -694,20 +697,20 @@ class GameObject(object):
                     # Assign it's value to a temporary variable c for simplicity
                     c = counter.value
 
-                    if type(c) == TempGameObject:
-                        # Change this object's variables according to c
-                        GameObject.change_variables(self, c)
+                    # if type(c) == TempGameObject:
+                    #     # Change this object's variables according to c
+                    #     GameObject.change_variables(self, c)
+                    #
+                    #     # If this was actually all part of our animations list, we make the animations progress
+                    #     for sublist in self.animations:
+                    #         if c in sublist:
+                    #             self.play_animation = True
 
-                        # If this was actually all part of our animations list, we make the animations progress
-                        for sublist in self.animations:
-                            if c in sublist:
-                                self.play_animation = True
+                    if type(c) == Func:
+                        c.execute(self)
 
-                    if callable(c):
-                        c(self)
-
-                    # If our counters variable hasn't been changed by c, and we still have counter in our counters
-                    if counter in self.counters and (type(c) != TempGameObject or c.counters != ""):
+                    # If we still have counter in our counters
+                    if counter in self.counters:
                         # We convert counters to a temporary list
                         counters = list(self.counters)
                         # We remove the counter from our temporary list
@@ -731,26 +734,27 @@ class GameObject(object):
                 # We call the function to temporarily change our variables, with time being as the first element of our
                 # animation element list, the immediate variable change as second element of our animation, and the
                 # change after counter ticks down as third element of our animation.
-                self.temporarily_change_variables(
-                    t=self.animations[0][0],
-                    before=self.animations[0][1],
-                    after=self.animations[0][2],
-                )
-                # We then set the animation to not play anymore.
-                self.play_animation = False
-                # And if our animations haven't been overwritten by our animation already to contain nothing,
-                if self.animations:
-                    # We make them into a temporary list to make them mutable
-                    animations = list(self.animations)
-                    # We move the first element o the last element
-                    animations.insert(len(animations), animations.pop(0))
-                    # We make that temporary list into a tuple and set out animations to it
-                    self.animations = tuple(animations)
+                self.animations[0].execute(self)
+                # self.temporarily_change_variables(
+                #     t=self.animations[0][0],
+                #     before=self.animations[0][1],
+                #     after=self.animations[0][2],
+                # )
+                # # We then set the animation to not play anymore.
+                # self.play_animation = False
+                # # And if our animations haven't been overwritten by our animation already to contain nothing,
+                # if self.animations:
+                #     # We make them into a temporary list to make them mutable
+                #     animations = list(self.animations)
+                #     # We move the first element o the last element
+                #     animations.append(animations.pop(0))
+                #     # We make that temporary list into a tuple and set out animations to it
+                #     self.animations = tuple(animations)
 
     # Function to temporarily change object variables. Any of them.
     # t is time, in frames, for how long the counter will last. At the end of the counter, this game object will be
     # assigned values from after. At the immediate start of the timer, it will be assigned values from before.
-    def temporarily_change_variables(self, t, before, after):
+    def temporarily_change_variables(self, t: int, before, after):
         # We make the temporary game object initialized, so it can update. It won't update unless you intentionally
         # update it.
         after.initialized = True
@@ -763,9 +767,6 @@ class GameObject(object):
         # And discard it because we don't need it anymore.
         del before
 
-        # If we don't have that counter in our counters, we add it to our counters.
-        # How would we even have that counter in our counters? Well, that's in case before changed our counters to
-        # include this exact timer, for whatever reason.
         self.counters = self.counters + (after_counter,)
 
     # Draws the game object on the surface
@@ -833,7 +834,6 @@ class GameObject(object):
             "y_offset",
             "y_offset_op",
         ]
-
         for var in all_game_object_variables:
             if getattr(object_replace_with, var) != "":
                 value = getattr(object_replace_with, var)
@@ -890,12 +890,12 @@ class GameObject(object):
         return True
 
     @staticmethod
-    def evaluate_operation(val1, val2, operator):
-        if operator == "+":
+    def evaluate_operation(val1: Union[int, float], val2: Union[int, float], operator: str):
+        if operator == '+':
             return val1 + val2
-        if operator == "*":
+        if operator == '*':
             return val1 * val2
-        if operator == "=":
+        if operator == '=':
             return val2
         return val1
 
@@ -940,7 +940,7 @@ class GameObject(object):
     #   [3, '+', TempGameObject(), GameObject()] replace [1, 5, '*', GameObject()] =
     #   [1, 5, '*', GameObject()]
     @staticmethod
-    def evaluate_operation_between_different_types(val1, val2, operator):
+    def evaluate_operation_between_different_types(val1, val2, operator: str):
         val1_type = type(val1)
         val2_type = type(val2)
         iters = (tuple, list)
@@ -990,63 +990,71 @@ class TempGameObject(GameObject):
     # corresponding to the operation
     def __init__(
             self,
-            x="",               # int
-            y="",               # int
-            width="",               # int
-            height="",               # int
-            x_offset="",               # int
-            y_offset="",               # int
-            width_offset="",               # int
-            height_offset="",               # int
-            x_offset_op="",               # str
-            y_offset_op="",               # str
-            width_offset_op="",               # str
-            height_offset_op="",               # str
-            original_hit_box="",               # tuple
-            image_origin="",               # tuple
-            angle="",               # float
-            rotation_mode="",               # str
-            rotated_hit_box="",               # list
-            controls="",               # tuple
-            pressed_controls="",               # list
-            speed="",               # tuple
-            icon="",               # pygame.Surface
-            hit_box_color="",               # tuple
-            sound="",               # NoneType
-            sound_volume="",               # float
-            sound_channel="",               # int
-            sound_loop_mode="",               # int
-            sound_fade_in_ms="",               # int
-            played_sound="",               # bool
-            weight="",               # float
-            animations="",               # tuple
-            play_animation="",               # bool
-            counters="",               # tuple
-            x_operation="+",
-            y_operation="+",
-            width_operation="+",
-            height_operation="+",
-            x_offset_operation="+",
-            y_offset_operation="+",
-            width_offset_operation="+",
-            height_offset_operation="+",
-            original_hit_box_operation="+",
-            image_origin_operation="+",
-            angle_operation="+",
-            rotated_hit_box_operation="+",
-            controls_operation="+",
-            pressed_controls_operation="+",
-            speed_operation="+",
-            hit_box_color_operation="+",
-            sound_volume_operation="+",
-            sound_channel_operation="+",
-            sound_loop_mode_operation="+",
-            sound_fade_in_ms_operation="+",
-            played_sound_operation="+",
-            weight_operation="+",
-            animations_operation="+",
-            play_animation_operation="+",
-            counters_operation="+",
+            x='',               # int
+            y='',               # int
+            width='',               # int
+            height='',               # int
+            x_offset='',               # int
+            y_offset='',               # int
+            width_offset='',               # int
+            height_offset='',               # int
+            x_offset_op='',               # str
+            y_offset_op='',               # str
+            width_offset_op='',               # str
+            height_offset_op='',               # str
+            speed_axis='',               # tuple
+            sound='',               # NoneType
+            sound_volume='',               # float
+            sound_channel='',               # int
+            sound_loop_mode='',               # int
+            sound_fade_in_ms='',               # int
+            played_sound='',               # bool
+            speed='',               # tuple
+            icon='',               # pygame.Surface
+            hit_box_color='',               # tuple
+            weight='',               # float
+            animations='',               # tuple
+            play_animation='',               # bool
+            counters='',               # tuple
+            other_events='',               # tuple
+            original_hit_box='',               # tuple
+            image_origin='',               # tuple
+            angle='',               # float
+            rotation_mode='',               # str
+            rotated_hit_box='',               # list
+            moved_rotated_hit_box='',               # tuple
+            bounding_box='',               # list
+            controls='',               # tuple
+            pressed_controls='',               # list
+            x_operation='+',
+            y_operation='+',
+            width_operation='+',
+            height_operation='+',
+            x_offset_operation='+',
+            y_offset_operation='+',
+            width_offset_operation='+',
+            height_offset_operation='+',
+            speed_axis_operation='+',
+            sound_volume_operation='+',
+            sound_channel_operation='+',
+            sound_loop_mode_operation='+',
+            sound_fade_in_ms_operation='+',
+            played_sound_operation='+',
+            speed_operation='+',
+            hit_box_color_operation='+',
+            weight_operation='+',
+            animations_operation='+',
+            play_animation_operation='+',
+            counters_operation='+',
+            other_events_operation='+',
+            original_hit_box_operation='+',
+            image_origin_operation='+',
+            angle_operation='+',
+            rotated_hit_box_operation='+',
+            moved_rotated_hit_box_operation='+',
+            bounding_box_operation='+',
+            controls_operation='+',
+            pressed_controls_operation='+',
     ):
         self.x = x
         self.y = y
@@ -1060,26 +1068,30 @@ class TempGameObject(GameObject):
         self.y_offset_op = y_offset_op
         self.width_offset_op = width_offset_op
         self.height_offset_op = height_offset_op
-        self.original_hit_box = original_hit_box
-        self.image_origin = image_origin
-        self.angle = angle
-        self.rotation_mode = rotation_mode
-        self.rotated_hit_box = rotated_hit_box
-        self.controls = controls
-        self.pressed_controls = pressed_controls
-        self.speed = speed
-        self.icon = icon
-        self.hit_box_color = hit_box_color
+        self.speed_axis = speed_axis
         self.sound = sound
         self.sound_volume = sound_volume
         self.sound_channel = sound_channel
         self.sound_loop_mode = sound_loop_mode
         self.sound_fade_in_ms = sound_fade_in_ms
         self.played_sound = played_sound
+        self.speed = speed
+        self.icon = icon
+        self.hit_box_color = hit_box_color
         self.weight = weight
         self.animations = animations
         self.play_animation = play_animation
         self.counters = counters
+        self.other_events = other_events
+        self.original_hit_box = original_hit_box
+        self.image_origin = image_origin
+        self.angle = angle
+        self.rotation_mode = rotation_mode
+        self.rotated_hit_box = rotated_hit_box
+        self.moved_rotated_hit_box = moved_rotated_hit_box
+        self.bounding_box = bounding_box
+        self.controls = controls
+        self.pressed_controls = pressed_controls
         self.x_operation = x_operation
         self.y_operation = y_operation
         self.width_operation = width_operation
@@ -1088,23 +1100,27 @@ class TempGameObject(GameObject):
         self.y_offset_operation = y_offset_operation
         self.width_offset_operation = width_offset_operation
         self.height_offset_operation = height_offset_operation
-        self.original_hit_box_operation = original_hit_box_operation
-        self.image_origin_operation = image_origin_operation
-        self.angle_operation = angle_operation
-        self.rotated_hit_box_operation = rotated_hit_box_operation
-        self.controls_operation = controls_operation
-        self.pressed_controls_operation = pressed_controls_operation
-        self.speed_operation = speed_operation
-        self.hit_box_color_operation = hit_box_color_operation
+        self.speed_axis_operation = speed_axis_operation
         self.sound_volume_operation = sound_volume_operation
         self.sound_channel_operation = sound_channel_operation
         self.sound_loop_mode_operation = sound_loop_mode_operation
         self.sound_fade_in_ms_operation = sound_fade_in_ms_operation
         self.played_sound_operation = played_sound_operation
+        self.speed_operation = speed_operation
+        self.hit_box_color_operation = hit_box_color_operation
         self.weight_operation = weight_operation
         self.animations_operation = animations_operation
         self.play_animation_operation = play_animation_operation
         self.counters_operation = counters_operation
+        self.other_events_operation = other_events_operation
+        self.original_hit_box_operation = original_hit_box_operation
+        self.image_origin_operation = image_origin_operation
+        self.angle_operation = angle_operation
+        self.rotated_hit_box_operation = rotated_hit_box_operation
+        self.moved_rotated_hit_box_operation = moved_rotated_hit_box_operation
+        self.bounding_box_operation = bounding_box_operation
+        self.controls_operation = controls_operation
+        self.pressed_controls_operation = pressed_controls_operation
 
         # The initialized variable makes the temporary game object update if it's true. This is only useful for
         # temporary game objects that update, and are in animations.
@@ -1125,7 +1141,7 @@ class Counter(object):
     # change_range: list of 2 numbers, determining the minimum and maximum of the counter
     # change_per_second: the number which will be deducted each frame
     # value: variable to hold anything if needed. Useful for temporary variable changes and animations.
-    def __init__(self, count, change_range, change_per_second, value):
+    def __init__(self, count: Union[int, float], change_range, change_per_second: Union[int, float], value):
         self.count = count
         self.range = change_range
         self.decrease = change_per_second
@@ -1267,10 +1283,10 @@ class ConvexPolygon:
                         total_percent = obj_1.weight + obj_2.weight
                         percent_1 = obj_1.weight / total_percent
                         percent_2 = obj_2.weight / total_percent
-                        obj_1.x += movement[1][0] * percent_1
-                        obj_1.y += movement[1][1] * percent_1
-                        obj_2.x -= movement[1][0] * percent_2
-                        obj_2.y -= movement[1][1] * percent_2
+                        obj_1.x += float(movement[1][0]) * percent_1
+                        obj_1.y += float(movement[1][1]) * percent_1
+                        obj_2.x -= float(movement[1][0]) * percent_2
+                        obj_2.y -= float(movement[1][1]) * percent_2
 
 
 class Polygon:
@@ -1315,6 +1331,8 @@ class Polygon:
     @staticmethod
     def get_line_formula(p1, p2):
         if p1[0] != p2[0]:
+            p1 = tuple(Decimal(i) for i in p1)
+            p2 = tuple(Decimal(i) for i in p2)
             m = (p2[1] - p1[1]) / (p2[0] - p1[0])
             b = p1[1] - (p1[0] * m)
             # y = m * x + b
@@ -1505,18 +1523,18 @@ class Polygon:
     @staticmethod
     def get_perpendicular_on_line_by_line_formula(line_point1, line_point2, point):
         m, b, info = Polygon.get_line_formula(line_point1, line_point2)
-        if info == "Y" and m != 0:
-            pm = -(1 / m)
-            pb = point[1] - (pm * point[0])
+        if info == "Y" and float(m) != 0.0:
+            pm = -(Decimal(1) / m)
+            pb = Decimal(point[1]) - (pm * Decimal(point[0]))
             x, y = Polygon.get_two_lines_intersection_by_line_equation(m, b, pm, pb)
             # x = (b - pb) / (pm - m)
             # y = (m * x) + b
         elif info == "X":
-            x = line_point1[0]
-            y = point[1]
-        elif m == 0:
-            x = point[0]
-            y = line_point1[1]
+            x = Decimal(line_point1[0])
+            y = Decimal(point[1])
+        elif float(m) == 0.0:
+            x = Decimal(point[0])
+            y = Decimal(line_point1[1])
         else:
             x = m
             y = b
@@ -1570,59 +1588,63 @@ class Polygon:
         return False
 
     @staticmethod
-    def collide_polygons(movable_polygon, static_polygon):
-        if Polygon.which_polygon_is_inside_another(movable_polygon, static_polygon):
-            all_perpendiculars = []
-            viable_perpendiculars = []
-            for point in movable_polygon:
-                if Polygon.is_point_in_polygon(static_polygon, point):
-                    perpendicular_points = (
-                        Polygon.all_perpendiculars_on_a_polygon_of_a_point1and3(
-                            static_polygon, point
-                        )
+    def get_movement_perpendiculars(movable_polygon, static_polygon):
+        all_perpendiculars = []
+        for point in movable_polygon:
+            if Polygon.is_point_in_polygon(static_polygon, point):
+                perpendicular_points = (
+                    Polygon.get_perpendiculars_on_polygon_by_line_formula(
+                        static_polygon, point
                     )
-                    if perpendicular_points:
-                        for perpendicular_point in perpendicular_points:
-                            all_perpendiculars.append(
-                                (
-                                    perpendicular_point[0] - point[0],
-                                    perpendicular_point[1] - point[1],
-                                )
+                )
+                if perpendicular_points:
+                    for perpendicular_point in perpendicular_points:
+                        all_perpendiculars.append(
+                            (
+                                perpendicular_point[0] - Decimal(point[0]),
+                                perpendicular_point[1] - Decimal(point[1]),
                             )
-            for point in static_polygon:
-                if Polygon.is_point_in_polygon(movable_polygon, point):
-                    perpendicular_points = (
-                        Polygon.all_perpendiculars_on_a_polygon_of_a_point1and3(
-                            movable_polygon, point
                         )
+        for point in static_polygon:
+            if Polygon.is_point_in_polygon(movable_polygon, point):
+                perpendicular_points = (
+                    Polygon.get_perpendiculars_on_polygon_by_line_formula(
+                        movable_polygon, point
                     )
-                    if perpendicular_points:
-                        for perpendicular_point in perpendicular_points:
-                            all_perpendiculars.append(
-                                (
-                                    point[0] - perpendicular_point[0],
-                                    point[1] - perpendicular_point[1],
-                                )
+                )
+                if perpendicular_points:
+                    for perpendicular_point in perpendicular_points:
+                        all_perpendiculars.append(
+                            (
+                                Decimal(point[0]) - perpendicular_point[0],
+                                Decimal(point[1]) - perpendicular_point[1],
                             )
-            for point in all_perpendiculars:
-                temp_movable_polygon = list(movable_polygon)
-                for tp in range(len(temp_movable_polygon)):
-                    tpx = temp_movable_polygon[tp][0] + point[0]
-                    tpy = temp_movable_polygon[tp][1] + point[1]
-                    temp_movable_polygon[tp] = (tpx, tpy)
-                # if not Polygon.do_polygons_intersect(temp_movable_polygon, static_polygon):
-                # if not Polygon.polygons_collide_number_inaccuracy(temp_movable_polygon, static_polygon,
-                #                                                   sensitivity=1.0):
-                if not Polygon.do_polygons_collide_by_intersection_area_shapely(
-                    temp_movable_polygon, static_polygon, 30.0
-                ):
-                    viable_perpendiculars.append(point)
+                        )
+        return all_perpendiculars
 
-            viable_perpendiculars = sorted(
-                viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1])
-            )
-            return viable_perpendiculars
-        return False
+    @staticmethod
+    def collide_polygons(movable_polygon, static_polygon):
+        all_perpendiculars = Polygon.get_movement_perpendiculars(movable_polygon, static_polygon)
+        viable_perpendiculars = []
+
+        for point in all_perpendiculars:
+            temp_movable_polygon = list(movable_polygon)
+            for tp in range(len(temp_movable_polygon)):
+                tpx = Decimal(temp_movable_polygon[tp][0]) + point[0]
+                tpy = Decimal(temp_movable_polygon[tp][1]) + point[1]
+                temp_movable_polygon[tp] = (tpx, tpy)
+            # if not Polygon.do_polygons_intersect(temp_movable_polygon, static_polygon):
+            # if not Polygon.polygons_collide_number_inaccuracy(temp_movable_polygon, static_polygon,
+            #                                                   sensitivity=1.0):
+            if not Polygon.do_polygons_collide_by_intersection_area_shapely(
+                temp_movable_polygon, static_polygon, 10.0
+            ):
+                viable_perpendiculars.append(point)
+
+        viable_perpendiculars = sorted(
+            viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1])
+        )
+        return viable_perpendiculars
 
     @staticmethod
     def all_perpendiculars_on_a_polygon_of_a_point1and3(polygon_points, point):
@@ -1705,7 +1727,8 @@ class Polygon:
             obj_1 = objects[obj_i_1]
             for obj_i_2 in indexes[obj_i_1 + 1 :]:
                 obj_2 = objects[obj_i_2]
-                if Polygon.do_boxes_overlap(obj_1.bounding_box, obj_2.bounding_box):
+                if Polygon.do_boxes_overlap(obj_1.bounding_box, obj_2.bounding_box) and \
+                        Polygon.do_polygons_intersect(obj_1.moved_rotated_hit_box, obj_2.moved_rotated_hit_box):
                     movement = Polygon.collide_polygons(
                         obj_1.moved_rotated_hit_box, obj_2.moved_rotated_hit_box
                     )
@@ -1713,10 +1736,10 @@ class Polygon:
                         total_percent = obj_1.weight + obj_2.weight
                         percent_1 = obj_1.weight / total_percent
                         percent_2 = obj_2.weight / total_percent
-                        obj_1.x += movement[0][0] * percent_1
-                        obj_1.y += movement[0][1] * percent_1
-                        obj_2.x -= movement[0][0] * percent_2
-                        obj_2.y -= movement[0][1] * percent_2
+                        obj_1.x += float(movement[0][0]) * percent_1
+                        obj_1.y += float(movement[0][1]) * percent_1
+                        obj_2.x -= float(movement[0][0]) * percent_2
+                        obj_2.y -= float(movement[0][1]) * percent_2
                         if abs(movement[0][0]) + abs(movement[0][1]) > 4:
                             print("Objects collision exceeded limit!")
                             print(f"{obj_1=}")
@@ -1774,11 +1797,18 @@ if __name__ == "__main__":
         controls=[pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d],
         width=70,
         height=60,
-        angle=10,
+        angle=0,
         rotation_mode="CENTER",
         # hit_box=((0, 0), (0, 60), (70, 60), (70, 30), (60, 30), (60, 50), (40, 50), (40, 30), (40, 10), (70, 10), (70, 0)),
-        animations=((1, TempGameObject(), TempGameObject()),),
-        weight=0,
+        animations=(
+            Func(
+                Events.animate_start,
+                {'t': 120, 'before': TempGameObject(), 'after': Func(Events.animate_end,
+                                                                     {'before': TempGameObject()}
+                                                                     )}
+            ),
+        ),
+        weight=0.5,
     )
 
     blok = GameObject(
@@ -1789,7 +1819,14 @@ if __name__ == "__main__":
         angle=0,
         rotation_mode="AROUND",
         # hit_box=((-25, 0), (-25, 30), (-15, 30), (-15, 15), (0, 15), (0, 70), (100, 70), (100, 0)),
-        animations=((1, TempGameObject(), TempGameObject()),),
+        animations=(
+            Func(
+                Events.animate_start,
+                {'t': 120, 'before': TempGameObject(), 'after': Func(Events.animate_end,
+                                                                   {'before': TempGameObject()}
+                                                                   )}
+            ),
+        ),
         weight=1,
         x=67,
         y=13,
@@ -1802,11 +1839,11 @@ if __name__ == "__main__":
 
     while GameObject.check_player_events(players):
         update_objects(things)
+
+        Polygon.collide_objects_with_weight([blok, man])
         screen.window.fill(screen.color)
         draw_objects(drawable_things, screen.window)
         pygame.display.update()
-
-        ConvexPolygon.collide_objects_with_weight([blok, man])
 
         clock.tick(60)
     pygame.quit()
