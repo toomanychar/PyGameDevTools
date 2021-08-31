@@ -1,28 +1,11 @@
 import pygame
-import numpy as np
 import math
-from shapely.geometry import Polygon as pol
-from decimal import *
-from typing import Union
+import numpy as np
+import Polygon
+import Bezier
 
 
 class Events:
-    # These two are probably redundant because of class Func
-    #
-    # @staticmethod
-    # def exec_func(obj, do_func, do_args=()):
-    #     if callable(do_func):
-    #         do_func(obj=obj, args=do_args)
-    #         return True
-    #     return False
-    #
-    # @staticmethod
-    # def exec_cond_func(obj, do_func, cond_func, do_args=(), cond_args=()):
-    #     if callable(cond_func):
-    #         cond_func(obj=obj, args=cond_args, func=do_func, func_args=do_args)
-    #         return True
-    #     return False
-
     @staticmethod
     def pass_function(**dump):
         pass
@@ -34,15 +17,11 @@ class Events:
             before=kwargs['before'],
             after=kwargs['after'],
         )
-        # We then set the animation to not play anymore.
+
         obj.play_animation = False
-        # And if our animations haven't been overwritten by our animation already to contain nothing,
         if obj.animations:
-            # We make them into a temporary list to make them mutable
             animations = list(obj.animations)
-            # We move the first element to be the last element
             animations.append(animations.pop(0))
-            # We make that temporary list into a tuple and set our animations to it
             obj.animations = tuple(animations)
 
     @staticmethod
@@ -62,19 +41,14 @@ class Events:
                 obj.y += obj.speed[2] * obj.speed_axis[2]
             if obj.pressed_controls[3]:
                 obj.x += obj.speed[3] * obj.speed_axis[3]
-        except TypeError:
+        except IndexError:
             pass
 
     @staticmethod
     def move(obj, kwargs: dict = None, **dump):
-        try:
-            for i in range(min(len(obj.pressed_controls), len(obj.on_pressed_controls))):
-                if obj.pressed_controls[i]:
-                    obj.on_pressed_controls[i].execute(obj=obj, kwargs=kwargs)
-        # If the object is actually Temporary Game object, and some of the used variables are empty strings, we
-        # just ignore that error.
-        except TypeError:
-            pass
+        for i in range(min(len(obj.pressed_controls), len(obj.on_pressed_controls))):
+            if obj.pressed_controls[i]:
+                obj.on_pressed_controls[i].execute(obj=obj, kwargs=kwargs)
 
     @staticmethod
     def move_0(obj, **dump):
@@ -155,55 +129,7 @@ class Func(object):
         self.func(obj=obj, kwargs=kwargs)
 
 
-# Class for bezier curves. It's math and I'm too bored to explain it.
-class Bezier:
-    @staticmethod
-    def two_points(t: float, p1, p2):
-        if not isinstance(p1, np.ndarray) or not isinstance(p2, np.ndarray):
-            raise TypeError("Points must be an instance of the numpy.ndarray!")
-        if not isinstance(t, (int, float)):
-            raise TypeError("Parameter t must be an int or float!")
-
-        q1 = (1 - t) * p1 + t * p2
-        return q1
-
-    @staticmethod
-    def points(t: float, points):
-        new_points = []
-        for i in range(0, len(points) - 1):
-            new_points += [Bezier.two_points(t, points[i], points[i + 1])]
-        return new_points
-
-    @staticmethod
-    def point(t: float, points):
-        while len(points) > 1:
-            points = Bezier.points(t, points)
-        return points[0]
-
-    @staticmethod
-    def curve(t_values, points):
-        if not hasattr(t_values, "__iter__"):
-            raise TypeError(
-                "`t_values` Must be an ITERABLE of integers or floats, of length greater than 0 ."
-            )
-        if len(t_values) < 1:
-            raise TypeError(
-                "`t_values` Must be an iterable of integers or floats, of LENGTH greater than 0 ."
-            )
-        if not isinstance(t_values[0], (int, float)):
-            raise TypeError(
-                "`t_values` Must be an iterable of INTEGERS OR FLOATS, of length greater than 0 ."
-            )
-
-        curve = np.array([[0.0] * len(points[0])])
-        for t in t_values:
-            curve = np.append(curve, [Bezier.point(t, points)], axis=0)
-        curve = np.delete(curve, 0, 0)
-        return curve
-
-
-# Class for animations
-class Animation:
+class Animations:
     # Makes a list of points to move along, based off key points. There are two options available:
     # 1. Linear movement
     # 2. Bezier curve movement
@@ -215,8 +141,8 @@ class Animation:
     @staticmethod
     def calculate_movement_points(t: int, key_points, curve_type: str):
         if curve_type == "LINE":
-            movement_points = Animation.extend_linear_movement(
-                Animation.global_points_to_local_movement(key_points), t
+            movement_points = Animations.extend_linear_movement(
+                Animations.global_points_to_local_movement(key_points), t
             )
             return movement_points
         elif curve_type == "BEZIER":
@@ -227,7 +153,7 @@ class Animation:
             # Apply the bezier curve function to the array
             movement_points = Bezier.curve(t_points, movement_points)
             # Transform the points into local movement
-            movement_points = Animation.global_points_to_local_movement(movement_points)
+            movement_points = Animations.global_points_to_local_movement(movement_points)
             return movement_points
 
     # Transforms global points into local movement.
@@ -247,7 +173,7 @@ class Animation:
             for p in range(len(points[point])):
                 # If both this point's value and the next point's value is an integer or a float
                 if type(points[point][p]) in [int, float] and type(
-                    points[point + 1][p]
+                        points[point + 1][p]
                 ) in [int, float]:
                     # We find the difference between them and save that value to next_point
                     next_point.append(points[point + 1][p] - points[point][p])
@@ -304,21 +230,24 @@ class Animation:
     # Generates an empty animation shell
     # Example:
     # length = 3
-    # result = [[1, TempGameObject(), TempGameObject()], [1, TempGameObject(), TempGameObject()],
-    # [1, TempGameObject(), TempGameObject()]]
+    # result = [Func(Events.animate_start, {'t': 1, 'before': TempGameObject(), 'after':
+    # Func(Events.animate_end, {'before': TempGameObject()})}), Func(Events.animate_start, {'t': 1, 'before':
+    # TempGameObject(), 'after': Func(Events.animate_end, {'before': TempGameObject()})}), Func(Events.animate_start,
+    # {'t': 1, 'before': TempGameObject(), 'after': Func(Events.animate_end, {'before': TempGameObject()})})]
     # This makes an empty animation, usually used for converting movement points into correct animation format.
     # Why use this? It's simply easier than typing it out yourself. Basically, syntax sugar.
     @staticmethod
     def generate_empty_animations(length: int):
         # Return the empty (and useless) animation element layout times desired length.
-        return [
-                   Func(
+        return_list = []
+        for i in range(length):
+            return_list.append(Func(
                        Events.animate_start,
                        {'t': 1, 'before': TempGameObject(), 'after': Func(Events.animate_end,
-                                                                            {'before': TempGameObject()}
-                                                                            )}
-                   ),
-        ] * length
+                                                                          {'before': TempGameObject()}
+                                                                          )}
+                   ))
+        return return_list
 
     # Converts movement points into playable animations
     # Example:
@@ -336,7 +265,7 @@ class Animation:
         animations = list(animations)
         # In case we don't have enough animations we generate just enough empty new ones
         if len(animations) < len(points):
-            animations += Animation.generate_empty_animations(
+            animations += Animations.generate_empty_animations(
                 length=len(points) - len(animations)
             )
 
@@ -344,11 +273,12 @@ class Animation:
         for i in range(len(points)):
             # Go through each value of each element of points
             for j in range(len(points[i])):
-                replaced_attribute = getattr(animations[i]['before'], replaced_values[j])
+
+                replaced_attribute = getattr(animations[i].kwargs['before'], replaced_values[j])
                 value = GameObject.evaluate_operation_between_different_types(
                     replaced_attribute, points[i][j], values_operations[j]
                 )
-                setattr(animations[i]['before'], replaced_values[j], value)
+                setattr(animations[i].kwargs['before'], replaced_values[j], value)
         # Convert back to tuple and return that
         return tuple(animations)
 
@@ -403,14 +333,14 @@ class GameObject(object):
     # an additional value to help animations,
     def __init__(
         self,
-        x = 0,
-        y: int = 0,
-        width: int = 10,
-        height: int = 10,
-        x_offset: int = 0,
-        y_offset: int = 0,
-        width_offset: int = 0,
-        height_offset: int = 0,
+        x: float = 0.0,
+        y: float = 0.0,
+        width: float = 10.0,
+        height: float = 10.0,
+        x_offset: float = 0.0,
+        y_offset: float = 0.0,
+        width_offset: float = 0.0,
+        height_offset: float = 0.0,
         x_offset_op: str = '+',
         y_offset_op: str = '+',
         width_offset_op: str = '+',
@@ -697,15 +627,6 @@ class GameObject(object):
                     # Assign it's value to a temporary variable c for simplicity
                     c = counter.value
 
-                    # if type(c) == TempGameObject:
-                    #     # Change this object's variables according to c
-                    #     GameObject.change_variables(self, c)
-                    #
-                    #     # If this was actually all part of our animations list, we make the animations progress
-                    #     for sublist in self.animations:
-                    #         if c in sublist:
-                    #             self.play_animation = True
-
                     if type(c) == Func:
                         c.execute(self)
 
@@ -735,21 +656,6 @@ class GameObject(object):
                 # animation element list, the immediate variable change as second element of our animation, and the
                 # change after counter ticks down as third element of our animation.
                 self.animations[0].execute(self)
-                # self.temporarily_change_variables(
-                #     t=self.animations[0][0],
-                #     before=self.animations[0][1],
-                #     after=self.animations[0][2],
-                # )
-                # # We then set the animation to not play anymore.
-                # self.play_animation = False
-                # # And if our animations haven't been overwritten by our animation already to contain nothing,
-                # if self.animations:
-                #     # We make them into a temporary list to make them mutable
-                #     animations = list(self.animations)
-                #     # We move the first element o the last element
-                #     animations.append(animations.pop(0))
-                #     # We make that temporary list into a tuple and set out animations to it
-                #     self.animations = tuple(animations)
 
     # Function to temporarily change object variables. Any of them.
     # t is time, in frames, for how long the counter will last. At the end of the counter, this game object will be
@@ -890,7 +796,7 @@ class GameObject(object):
         return True
 
     @staticmethod
-    def evaluate_operation(val1: Union[int, float], val2: Union[int, float], operator: str):
+    def evaluate_operation(val1, val2, operator):
         if operator == '+':
             return val1 + val2
         if operator == '*':
@@ -941,6 +847,10 @@ class GameObject(object):
     #   [1, 5, '*', GameObject()]
     @staticmethod
     def evaluate_operation_between_different_types(val1, val2, operator: str):
+
+        if val1 == '':
+            val1 = 0
+
         val1_type = type(val1)
         val2_type = type(val2)
         iters = (tuple, list)
@@ -952,6 +862,8 @@ class GameObject(object):
             val1 = int(val1 == True)
         if val2_type == bool:
             val2 = int(val2 == True)
+
+
 
         if val1_type in iters:
             return_value = list(return_value)
@@ -976,7 +888,6 @@ class GameObject(object):
                 return_value = GameObject.evaluate_operation(val1, val2[0], operator)
             elif val2_type in nums:
                 return_value = GameObject.evaluate_operation(val1, val2, operator)
-
         if val1_type == bool:
             return_value = bool(return_value)
 
@@ -1141,7 +1052,7 @@ class Counter(object):
     # change_range: list of 2 numbers, determining the minimum and maximum of the counter
     # change_per_second: the number which will be deducted each frame
     # value: variable to hold anything if needed. Useful for temporary variable changes and animations.
-    def __init__(self, count: Union[int, float], change_range, change_per_second: Union[int, float], value):
+    def __init__(self, count, change_range, change_per_second, value):
         self.count = count
         self.range = change_range
         self.decrease = change_per_second
@@ -1289,491 +1200,6 @@ class ConvexPolygon:
                         obj_2.y -= float(movement[1][1]) * percent_2
 
 
-class Polygon:
-
-    # Function to find the minimal collision of rectangles. Useful for basic object collision.
-    # movable_rect: any game object. Will be the one moved
-    # static_rect: any other game object. Will not be the one moved. You can still deduce where to move it if you like,
-    # by diving the cost by two, and moving both objects in opposite directions.
-    @staticmethod
-    def collide_unrotated_rectangles(movable_rect, static_rect):
-        # Check if both rectangles are colliding at all
-        if pygame.Rect(
-            movable_rect.x, movable_rect.y, movable_rect.width, movable_rect.height
-        ).colliderect(
-            pygame.Rect(
-                static_rect.x, static_rect.y, static_rect.width, static_rect.height
-            )
-        ):
-
-            # We find the difference between the bottom of the static rect and the top of the movable rect
-            cost_down = static_rect.y + static_rect.height - movable_rect.y
-            # We find the difference between the bottom of the movable rect and the top of the static rect
-            cost_up = movable_rect.y + movable_rect.height - static_rect.y
-            # We find the difference between the right of the static rect and the left of the movable rect
-            cost_right = static_rect.x + static_rect.width - movable_rect.x
-            # We find the difference between the right of the movable rect and the left of the static rect
-            cost_left = movable_rect.x + movable_rect.width - static_rect.x
-
-            # Find the minimal cost of moving each direction, to get realistic collision
-            minimal_cost = min(cost_down, cost_up, cost_right, cost_left)
-            # Check which direction takes minimal effort and return values accordingly
-            if minimal_cost == cost_left:
-                return ["LEFT", cost_left]
-            if minimal_cost == cost_right:
-                return ["RIGHT", cost_right]
-            if minimal_cost == cost_up:
-                return ["UP", cost_up]
-            if minimal_cost == cost_down:
-                return ["DOWN", cost_down]
-        return False
-
-    @staticmethod
-    def get_line_formula(p1, p2):
-        if p1[0] != p2[0]:
-            p1 = tuple(Decimal(i) for i in p1)
-            p2 = tuple(Decimal(i) for i in p2)
-            m = (p2[1] - p1[1]) / (p2[0] - p1[0])
-            b = p1[1] - (p1[0] * m)
-            # y = m * x + b
-            return m, b, "Y"
-        elif p1[1] != p2[1]:
-            m = 0
-            b = 0
-            # x = b
-            return m, b, "X"
-        else:
-            bx = p1[0]
-            by = p1[1]
-            # x = p1[0]
-            # y = p1[1]
-            return bx, by, "XY"
-
-    @staticmethod
-    def sort_line_by_index(line, index):
-        line = sorted(list(line), key=lambda x: x[index])
-        return line
-
-    @staticmethod
-    def is_collinear_on_segment(p1, p2, p3):
-        if (
-            (p2[0] <= max(p1[0], p3[0]))
-            and (p2[0] >= min(p1[0], p3[0]))
-            and (p2[1] <= max(p1[1], p3[1]))
-            and (p2[1] >= min(p1[1], p3[1]))
-        ):
-            return True
-        return False
-
-    @staticmethod
-    def get_lines_orientation(p1, p2, p3):
-        val = ((p2[1] - p1[1]) * (p3[0] - p2[0])) - ((p2[0] - p1[0]) * (p3[1] - p2[1]))
-        if val > 0:
-            return 1
-        elif val < 0:
-            return 2
-        else:
-            return 4
-
-    @staticmethod
-    def do_lines_intersect(line1, line2):
-        o1 = Polygon.get_lines_orientation(
-            line1[0], line1[1], line2[0]
-        ) + Polygon.get_lines_orientation(line1[0], line1[1], line2[1])
-        o2 = Polygon.get_lines_orientation(
-            line1[1], line1[0], line2[0]
-        ) + Polygon.get_lines_orientation(line1[1], line1[0], line2[1])
-
-        o3 = Polygon.get_lines_orientation(
-            line2[0], line2[1], line1[0]
-        ) + Polygon.get_lines_orientation(line2[0], line2[1], line1[1])
-        o4 = Polygon.get_lines_orientation(
-            line2[1], line2[0], line1[0]
-        ) + Polygon.get_lines_orientation(line2[1], line2[0], line1[1])
-        if (
-            o1 % 2
-            and o1 < 5
-            and o2 % 2
-            and o2 < 5
-            and o3 % 2
-            and o3 < 5
-            and o4 % 2
-            and o4 < 5
-        ):
-            return True
-
-        return False
-
-    @staticmethod
-    def get_polygon_area(polygon_points):
-        return 0.5 * abs(
-            sum(
-                x0 * y1 - x1 * y0
-                for ((x0, y0), (x1, y1)) in Polygon.get_polygon_segments(polygon_points)
-            )
-        )
-
-    @staticmethod
-    def get_polygon_segments(polygon_points):
-        return zip(polygon_points, polygon_points[1:] + [polygon_points[0]])
-
-    @staticmethod
-    def is_point_in_convex_polygon(polygon_points, point, sensitivity=10.0):
-        polygon_area = Polygon.get_polygon_area(polygon_points)
-
-        point_area = 0
-        for p in range(len(polygon_points) - 1, -1, -1):
-            a = polygon_points[p]
-            b = polygon_points[p + 1]
-            if a == point or b == point:
-                return -2
-            ab = math.sqrt(((a[0] - b[0]) ** 2) + ((a[1] - b[1]) ** 2))
-            ap = math.sqrt(((a[0] - point[0]) ** 2) + ((a[1] - point[1]) ** 2))
-            bp = math.sqrt(((b[0] - point[0]) ** 2) + ((b[1] - point[1]) ** 2))
-            if ((ab + ap <= bp) or (ap + bp <= ab) or (bp + ab <= ap)) and (a != b):
-                return -1
-            abp_perimeter = (ab + bp + ap) / 2
-            abp_area = math.sqrt(
-                abp_perimeter
-                * (abp_perimeter - ab)
-                * (abp_perimeter - bp)
-                * (abp_perimeter - ap)
-            )
-            point_area += abp_area
-        if point_area <= polygon_area + sensitivity:
-            return True
-        return False
-
-    @staticmethod
-    def is_point_in_polygon(polygon_points, point):
-        point_line = (point, (1000000000000, point[1]))
-        intersections = 0
-
-        for p in range(len(polygon_points) - 1, -1, -1):
-            polygon_line = (polygon_points[p], polygon_points[p - 1])
-            if Polygon.do_lines_intersect(point_line, polygon_line) or (
-                polygon_line[0][1] == point[1] and polygon_line[0][0] > point[0]
-            ):
-                intersections += 1
-
-        return intersections % 2 != 0
-
-    @staticmethod
-    def do_polygons_intersect(points1, points2):
-        for p1 in range(len(points1) - 1, -1, -1):
-            line1 = points1[p1], points1[p1 - 1]
-            for p2 in range(len(points2) - 1, -1, -1):
-                line2 = points2[p2], points2[p2 - 1]
-                if Polygon.do_lines_intersect(line1, line2):
-                    return True
-        return False
-
-    @staticmethod
-    def which_polygon_is_inside_another(polygon_points1, polygon_points2):
-        which = 0
-        for point in polygon_points1:
-            if Polygon.is_point_in_polygon(polygon_points2, point):
-                which += 1
-                break
-        for point in polygon_points2:
-            if Polygon.is_point_in_polygon(polygon_points1, point):
-                which += 2
-                break
-        return which
-
-    @staticmethod
-    def get_two_lines_intersection_by_line_equation(m1, b1, m2, b2):
-        if m1 != m2:
-            x = (b1 - b2) / (m2 - m1)
-            y = (m1 * x) + b1
-            return x, y
-        return False
-
-    @staticmethod
-    def is_point_on_line(line_point1, line_point2, point):
-        ap = Polygon.hypotenuse(line_point1, point)
-        pc = Polygon.hypotenuse(line_point2, point)
-        ac = Polygon.hypotenuse(line_point1, line_point2)
-        return math.isclose(ap + pc, ac)
-
-    @staticmethod
-    def get_two_lines_intersection_by_points(line1, line2):
-        m1, b1, info1 = Polygon.get_line_formula(line1[0], line1[1])
-        m2, b2, info2 = Polygon.get_line_formula(line2[0], line2[1])
-        if info1 == "XY":
-            x, y = line1[0]
-        else:
-            x, y = line2[0]
-
-        if info1 == "Y":
-            if info2 == "Y":
-                x, y = Polygon.get_two_lines_intersection_by_line_equation(
-                    m1, b1, m2, b2
-                )
-            elif info2 == "X":
-                x = b2
-                y = m1 * x + b1
-        elif info1 == "X":
-            if info2 == "Y":
-                x = b1
-                y = m2 * x + b2
-
-        return x, y
-
-    @staticmethod
-    def get_perpendicular_on_line_by_line_formula(line_point1, line_point2, point):
-        m, b, info = Polygon.get_line_formula(line_point1, line_point2)
-        if info == "Y" and float(m) != 0.0:
-            pm = -(Decimal(1) / m)
-            pb = Decimal(point[1]) - (pm * Decimal(point[0]))
-            x, y = Polygon.get_two_lines_intersection_by_line_equation(m, b, pm, pb)
-            # x = (b - pb) / (pm - m)
-            # y = (m * x) + b
-        elif info == "X":
-            x = Decimal(line_point1[0])
-            y = Decimal(point[1])
-        elif float(m) == 0.0:
-            x = Decimal(point[0])
-            y = Decimal(line_point1[1])
-        else:
-            x = m
-            y = b
-        return x, y
-
-    @staticmethod
-    def get_perpendiculars_on_polygon_by_line_formula(polygon_points, point):
-        return_list = []
-        for p in range(len(polygon_points) - 1, -1, -1):
-            return_list.append(
-                Polygon.get_perpendicular_on_line_by_line_formula(
-                    polygon_points[p], polygon_points[p - 1], point
-                )
-            )
-        return return_list
-
-    # @staticmethod
-    # def does_point_collide_by_intersection_areas(polygon1, polygon2, index2, sensitivity=1.0):
-    #     main_point = polygon2[index2]
-    #     prev_point = polygon2[index2 - 1]
-    #     next_point = polygon2[index2 - len(polygon2) + 2]
-    #     intersection_lengths = [0]
-    #     for p in range(len(polygon1) - 1, -1, -1):
-    #         polygon_line = polygon1[p], polygon1[p - 1]
-    #
-    #         first_line = main_point, prev_point
-    #         if Polygon.lines_intersect(polygon_line, first_line):
-    #             intersection_point = Polygon.two_lines_intersection_by_points(first_line, polygon_line)
-    #             length = Polygon.hypotenuse(intersection_point, main_point)
-    #             intersection_lengths.append(length)
-    #
-    #         second_line = main_point, next_point
-    #         if Polygon.lines_intersect(polygon_line, second_line):
-    #             intersection_point = Polygon.two_lines_intersection_by_points(second_line, polygon_line)
-    #             length = Polygon.hypotenuse(intersection_point, main_point)
-    #             intersection_lengths.append(length)
-    #     intersection_lengths = sorted(intersection_lengths, reverse=True)
-    #     if intersection_lengths[0] > sensitivity:
-    #         return True
-    #     return False
-
-    @staticmethod
-    def do_polygons_collide_by_intersection_area_shapely(
-        polygon1, polygon2, sensitivity=1.0
-    ):
-        pol1 = pol(polygon1)
-        pol2 = pol(polygon2)
-        intersection = pol1.intersection(pol2)
-        if intersection.area > sensitivity:
-            return True
-        return False
-
-    @staticmethod
-    def get_movement_perpendiculars(movable_polygon, static_polygon):
-        all_perpendiculars = []
-        for point in movable_polygon:
-            if Polygon.is_point_in_polygon(static_polygon, point):
-                perpendicular_points = (
-                    Polygon.get_perpendiculars_on_polygon_by_line_formula(
-                        static_polygon, point
-                    )
-                )
-                if perpendicular_points:
-                    for perpendicular_point in perpendicular_points:
-                        all_perpendiculars.append(
-                            (
-                                perpendicular_point[0] - Decimal(point[0]),
-                                perpendicular_point[1] - Decimal(point[1]),
-                            )
-                        )
-        for point in static_polygon:
-            if Polygon.is_point_in_polygon(movable_polygon, point):
-                perpendicular_points = (
-                    Polygon.get_perpendiculars_on_polygon_by_line_formula(
-                        movable_polygon, point
-                    )
-                )
-                if perpendicular_points:
-                    for perpendicular_point in perpendicular_points:
-                        all_perpendiculars.append(
-                            (
-                                Decimal(point[0]) - perpendicular_point[0],
-                                Decimal(point[1]) - perpendicular_point[1],
-                            )
-                        )
-        return all_perpendiculars
-
-    @staticmethod
-    def collide_polygons(movable_polygon, static_polygon):
-        all_perpendiculars = Polygon.get_movement_perpendiculars(movable_polygon, static_polygon)
-        viable_perpendiculars = []
-
-        for point in all_perpendiculars:
-            temp_movable_polygon = list(movable_polygon)
-            for tp in range(len(temp_movable_polygon)):
-                tpx = Decimal(temp_movable_polygon[tp][0]) + point[0]
-                tpy = Decimal(temp_movable_polygon[tp][1]) + point[1]
-                temp_movable_polygon[tp] = (tpx, tpy)
-            # if not Polygon.do_polygons_intersect(temp_movable_polygon, static_polygon):
-            # if not Polygon.polygons_collide_number_inaccuracy(temp_movable_polygon, static_polygon,
-            #                                                   sensitivity=1.0):
-            if not Polygon.do_polygons_collide_by_intersection_area_shapely(
-                temp_movable_polygon, static_polygon, 10.0
-            ):
-                viable_perpendiculars.append(point)
-
-        viable_perpendiculars = sorted(
-            viable_perpendiculars, key=lambda x: abs(x[0]) + abs(x[1])
-        )
-        return viable_perpendiculars
-
-    @staticmethod
-    def all_perpendiculars_on_a_polygon_of_a_point1and3(polygon_points, point):
-        return_list = []
-        for p in range(len(polygon_points) - 1, -1, -1):
-            result1 = Polygon.get_perpendicular_on_line_by_line_formula(
-                polygon_points[p], polygon_points[p - 1], point
-            )
-            result2 = Polygon.perpendicular_on_line_by_rotation(
-                polygon_points[p], polygon_points[p - 1], point
-            )
-            result = (result1[0] + result2[0]) / 2, (result1[1] + result2[1]) / 2
-            return_list.append(result)
-        return return_list
-
-    @staticmethod
-    def perpendiculars_on_polygon_by_rotation(polygon_points, point):
-        return_list = []
-        for p in range(len(polygon_points) - 1, -1, -1):
-            return_list.append(
-                Polygon.perpendicular_on_line_by_rotation(
-                    polygon_points[p], polygon_points[p - 1], point
-                )
-            )
-        return return_list
-
-    @staticmethod
-    def points_angle_by_cos(p1, p2):
-        p1, p2 = Polygon.sort_line_by_index((p1, p2), 1)
-        hypotenuse = Polygon.hypotenuse(p1, p2)
-        if hypotenuse > 0:
-            angle = math.acos((p2[0] - p1[0]) / hypotenuse)
-        else:
-            angle = 0
-        return angle, hypotenuse
-
-    @staticmethod
-    def rotate_points_around_point(anchor_point, points, radians):
-        rotated_points = []
-        for point in points:
-            angle, hypotenuse = Polygon.points_angle_by_tan(anchor_point, point)
-            angle += radians
-            x = anchor_point[0] + math.cos(angle) * hypotenuse
-            y = anchor_point[1] + math.sin(angle) * hypotenuse
-            rotated_points.append((x, y))
-        return rotated_points
-
-    @staticmethod
-    def perpendicular_on_line_by_rotation(line_point1, line_point2, point):
-        line_angle, hypotenuse = Polygon.points_angle_by_tan(line_point1, line_point2)
-        rotated = Polygon.rotate_points_around_point(line_point1, [point], -line_angle)
-        perpendicular_point = rotated[0][0], line_point1[1]
-        rotated = Polygon.rotate_points_around_point(
-            line_point1, [perpendicular_point], line_angle
-        )
-        return rotated[0]
-
-    @staticmethod
-    def points_angle_by_sin(p1, p2):
-        hypotenuse = Polygon.hypotenuse(p1, p2)
-        if hypotenuse > 0:
-            angle = math.asin((p2[1] - p1[1]) / hypotenuse)
-        else:
-            angle = 0
-        return angle, hypotenuse
-
-    @staticmethod
-    def points_angle_by_tan(p1, p2):
-        angle = math.atan2(p2[1] - p1[1], p2[0] - p1[0])
-        return angle, Polygon.hypotenuse(p1, p2)
-
-    @staticmethod
-    def hypotenuse(point1, point2):
-        return math.sqrt((point2[0] - point1[0]) ** 2 + (point2[1] - point1[1]) ** 2)
-
-    @staticmethod
-    def collide_objects_with_weight(objects):
-        indexes = range(len(objects))
-        for obj_i_1 in indexes:
-            obj_1 = objects[obj_i_1]
-            for obj_i_2 in indexes[obj_i_1 + 1 :]:
-                obj_2 = objects[obj_i_2]
-                if Polygon.do_boxes_overlap(obj_1.bounding_box, obj_2.bounding_box) and \
-                        Polygon.do_polygons_intersect(obj_1.moved_rotated_hit_box, obj_2.moved_rotated_hit_box):
-                    movement = Polygon.collide_polygons(
-                        obj_1.moved_rotated_hit_box, obj_2.moved_rotated_hit_box
-                    )
-                    try:
-                        total_percent = obj_1.weight + obj_2.weight
-                        percent_1 = obj_1.weight / total_percent
-                        percent_2 = obj_2.weight / total_percent
-                        obj_1.x += float(movement[0][0]) * percent_1
-                        obj_1.y += float(movement[0][1]) * percent_1
-                        obj_2.x -= float(movement[0][0]) * percent_2
-                        obj_2.y -= float(movement[0][1]) * percent_2
-                        if abs(movement[0][0]) + abs(movement[0][1]) > 4:
-                            print("Objects collision exceeded limit!")
-                            print(f"{obj_1=}")
-                            print(f"{obj_2=}")
-                    except IndexError:
-                        print("No viable perpendiculars, even though objects collide")
-                        print(f"{obj_1=}")
-                        print(f"{obj_2=}")
-                    except TypeError:
-                        pass
-
-    @staticmethod
-    def get_bounding_box(points):
-        x_coordinates, y_coordinates = zip(*points)
-
-        return [(min(x_coordinates), min(y_coordinates)), (max(x_coordinates), max(y_coordinates))]
-
-    @staticmethod
-    def do_boxes_overlap(box1, box2):
-        l1 = box1[0][0]
-        t1 = box1[0][1]
-        r1 = box1[1][0]
-        b1 = box1[1][1]
-
-        l2 = box2[0][0]
-        t2 = box2[0][1]
-        r2 = box2[1][0]
-        b2 = box2[1][1]
-
-        if r1 <= l2 or r2 <= l1 or b1 <= t2 or b2 <= t1:
-            return False
-        return True
-
-
 # function for drawing all things on a surface. Simple, but very useful.
 # things: list of game objects or temporary game objects
 # surface: the screen window
@@ -1796,15 +1222,15 @@ if __name__ == "__main__":
     man = GameObject(
         controls=[pygame.K_w, pygame.K_a, pygame.K_s, pygame.K_d],
         width=70,
-        height=60,
+        height=40,
         angle=0,
         rotation_mode="CENTER",
         # hit_box=((0, 0), (0, 60), (70, 60), (70, 30), (60, 30), (60, 50), (40, 50), (40, 30), (40, 10), (70, 10), (70, 0)),
         animations=(
             Func(
                 Events.animate_start,
-                {'t': 120, 'before': TempGameObject(), 'after': Func(Events.animate_end,
-                                                                     {'before': TempGameObject()}
+                {'t': 1, 'before': TempGameObject(), 'after': Func(Events.animate_end,
+                                                                     {'before': TempGameObject(x=1)}
                                                                      )}
             ),
         ),
@@ -1818,29 +1244,35 @@ if __name__ == "__main__":
         hit_box_color=(0, 250, 200),
         angle=0,
         rotation_mode="AROUND",
-        # hit_box=((-25, 0), (-25, 30), (-15, 30), (-15, 15), (0, 15), (0, 70), (100, 70), (100, 0)),
+        # hit_box=((0, 0), (0, 70), (75, 35), (100, 70), (100, 0)),
         animations=(
             Func(
                 Events.animate_start,
-                {'t': 120, 'before': TempGameObject(), 'after': Func(Events.animate_end,
+                {'t': 1, 'before': TempGameObject(), 'after': Func(Events.animate_end,
                                                                    {'before': TempGameObject()}
                                                                    )}
             ),
         ),
         weight=1,
-        x=67,
-        y=13,
     )
 
     players = [man, blok]
     drawable_things = [man, blok]
     things = [man, blok]
     screen = Screen(700, 600)
+    blok.animations = (
+        Animations.points_to_animation(
+        points=Animations.calculate_movement_points(60, ((0, 0), (50, 5), (10, 10), (0, 20), (-5, -10), (0, 0)), 'BEZIER'),
+        replaced_values=('x', 'y'),
+        values_operations=('+', '+'),
+        animations=blok.animations
+    ))
 
     while GameObject.check_player_events(players):
         update_objects(things)
 
-        Polygon.collide_objects_with_weight([blok, man])
+        ConvexPolygon.collide_objects_with_weight([blok, man])
+
         screen.window.fill(screen.color)
         draw_objects(drawable_things, screen.window)
         pygame.display.update()
